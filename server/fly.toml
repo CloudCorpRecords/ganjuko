@@ -1,0 +1,37 @@
+# Ganjuko Battle Arena — official versus relay (TRUST §4.1).
+# One small always-on machine: the queue must exist before anyone
+# connects, so scale-to-zero is wrong for this service. Ratings and
+# replays live on the relay_data volume at /data — owner-only, never
+# served over HTTP except through the token-gated admin routes.
+app = "ganjuko-arena-relay"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  DATA_DIR = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    type = "http"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "GET"
+    path = "/health"
+
+[[mounts]]
+  source = "relay_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

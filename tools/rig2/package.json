@@ -1,0 +1,1 @@
+{"description":"Ganjuko test rig v2 — durable CDP test harness for RPG Maker MZ. Zero dependencies (Node >= 18 global WebSocket). See ../../playtest/TESTING.md.","name":"ganjuko-rig2","private":true,"scripts":{"shipgate":"node run.js shipgate","smoke":"node run.js smoke","static":"node run.js static"},"version":"2.0.0"}

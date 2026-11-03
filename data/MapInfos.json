@@ -1,0 +1,237 @@
+[
+  null,
+  {
+    "id": 1,
+    "expanded": true,
+    "name": "Wakaba Town",
+    "order": 1,
+    "parentId": 0,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 2,
+    "expanded": false,
+    "name": "Prof. Kusu's Lab",
+    "order": 2,
+    "parentId": 1,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 3,
+    "expanded": false,
+    "name": "Route 1 - Kaze Trail",
+    "order": 3,
+    "parentId": 0,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 4,
+    "expanded": true,
+    "name": "Kurogane Town",
+    "order": 4,
+    "parentId": 0,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 5,
+    "expanded": false,
+    "name": "Ganjuko Center & Mart",
+    "order": 5,
+    "parentId": 4,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 6,
+    "expanded": false,
+    "name": "Kurogane Gym",
+    "order": 6,
+    "parentId": 4,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 7,
+    "expanded": false,
+    "name": "Route 2 - Zephyr Coast",
+    "order": 7,
+    "parentId": 0,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 8,
+    "expanded": false,
+    "name": "Obsidian Cavern Mines",
+    "order": 8,
+    "parentId": 7,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 9,
+    "expanded": true,
+    "name": "Port Marine",
+    "order": 9,
+    "parentId": 0,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 10,
+    "expanded": false,
+    "name": "Port Marine Gym",
+    "order": 10,
+    "parentId": 9,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 11,
+    "expanded": false,
+    "name": "Route 3 - Thunder Meadow",
+    "order": 11,
+    "parentId": 0,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 12,
+    "expanded": true,
+    "name": "Spark City",
+    "order": 12,
+    "parentId": 0,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 13,
+    "expanded": false,
+    "name": "Spark City Gym",
+    "order": 13,
+    "parentId": 12,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 14,
+    "expanded": false,
+    "name": "Ganjuko Battle Tower",
+    "order": 14,
+    "parentId": 12,
+    "scrollX": 400,
+    "scrollY": 320
+  },
+  {
+    "id": 15,
+    "expanded": false,
+    "name": "Route 4 - Verdant Canopy",
+    "order": 15,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 16,
+    "expanded": false,
+    "name": "Sylva Forest Gym",
+    "order": 16,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 17,
+    "expanded": false,
+    "name": "Route 5 - Scorched Pass",
+    "order": 17,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 18,
+    "expanded": false,
+    "name": "Mt. Pyre Caldera Gym",
+    "order": 18,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 19,
+    "expanded": false,
+    "name": "Route 6 - Skyward Ridge",
+    "order": 19,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 20,
+    "expanded": false,
+    "name": "Cloudpeak Sanctuary Gym",
+    "order": 20,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 21,
+    "expanded": false,
+    "name": "Route 7 - Gloom Mire",
+    "order": 21,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 22,
+    "expanded": false,
+    "name": "Gloom Hollow Gym",
+    "order": 22,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 23,
+    "expanded": false,
+    "name": "Route 8 - Astral Plateau",
+    "order": 23,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 24,
+    "expanded": false,
+    "name": "Starfall Citadel Gym",
+    "order": 24,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 25,
+    "expanded": false,
+    "name": "Victory Road Labyrinth",
+    "order": 25,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 26,
+    "expanded": false,
+    "name": "Ganjuko League Champions Hall",
+    "order": 26,
+    "parentId": 0,
+    "scrollX": 0,
+    "scrollY": 0
+  }
+]
