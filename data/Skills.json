@@ -6,7 +6,7 @@
   "damage": {
    "critical": true,
    "elementId": 1,
-   "formula": "a.atk * 0.44 - b.def * 0.18",
+   "formula": "a.atk * 0.5 - b.def * 0.205",
    "type": 1,
    "variance": 15
   },
@@ -75,7 +75,7 @@
   "damage": {
    "critical": true,
    "elementId": 1,
-   "formula": "2 + a.atk * 0.44 - b.def * 0.16",
+   "formula": "2.273 + a.atk * 0.5 - b.def * 0.182",
    "type": 1,
    "variance": 15
   },
@@ -106,7 +106,7 @@
   "damage": {
    "critical": true,
    "elementId": 1,
-   "formula": "2 + a.atk * 0.44 - b.def * 0.16",
+   "formula": "2.273 + a.atk * 0.5 - b.def * 0.182",
    "type": 1,
    "variance": 15
   },
@@ -137,7 +137,7 @@
   "damage": {
    "critical": true,
    "elementId": 1,
-   "formula": "2.4 + a.atk * 0.46 - b.def * 0.16",
+   "formula": "2.087 + a.atk * 0.4 - b.def * 0.139",
    "type": 1,
    "variance": 15
   },
@@ -168,13 +168,20 @@
   "damage": {
    "critical": true,
    "elementId": 2,
-   "formula": "2.8 + a.mat * 0.48 - b.mdf * 0.16",
+   "formula": "3.208 + a.mat * 0.55 - b.mdf * 0.183",
    "type": 1,
    "variance": 15
   },
   "description": "[FIRE] Launches a volley of scorching sparks.",
-  "effects": [],
-  "hitType": 1,
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 11,
+    "value1": 0.1,
+    "value2": 0
+   }
+  ],
+  "hitType": 2,
   "iconIndex": 64,
   "message1": "%1 used Ember!",
   "message2": "",
@@ -199,7 +206,7 @@
   "damage": {
    "critical": true,
    "elementId": 2,
-   "formula": "3.6 + a.atk * 0.52 - b.def * 0.16",
+   "formula": "4.154 + a.atk * 0.6 - b.def * 0.185",
    "type": 1,
    "variance": 15
   },
@@ -230,19 +237,26 @@
   "damage": {
    "critical": true,
    "elementId": 2,
-   "formula": "4.8 + a.atk * 0.58 - b.def * 0.18",
+   "formula": "5.379 + a.atk * 0.65 - b.def * 0.202",
    "type": 1,
    "variance": 15
   },
   "description": "[FIRE] Bites with flame-cloaked fangs.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 11,
+    "value1": 0.1,
+    "value2": 0
+   }
+  ],
   "hitType": 1,
   "iconIndex": 64,
   "message1": "%1 used Fire Fang!",
   "message2": "",
   "mpCost": 7,
   "name": "Fire Fang",
-  "note": "",
+  "note": "<tags: bite>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -261,12 +275,19 @@
   "damage": {
    "critical": true,
    "elementId": 2,
-   "formula": "6.8 + a.mat * 0.7 - b.mdf * 0.18",
+   "formula": "8.743 + a.mat * 0.9 - b.mdf * 0.231",
    "type": 1,
    "variance": 15
   },
   "description": "[FIRE] Unleashes a devastating pillar of dragon fire.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 11,
+    "value1": 0.1,
+    "value2": 0
+   }
+  ],
   "hitType": 2,
   "iconIndex": 64,
   "message1": "%1 used Inferno Blast!",
@@ -292,13 +313,13 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "2.8 + a.mat * 0.48 - b.mdf * 0.16",
+   "formula": "3.208 + a.mat * 0.55 - b.mdf * 0.183",
    "type": 1,
    "variance": 15
   },
   "description": "[WATER] Fires pressurized bubbles at the opponent.",
   "effects": [],
-  "hitType": 1,
+  "hitType": 2,
   "iconIndex": 67,
   "message1": "%1 used Bubble Jet!",
   "message2": "",
@@ -323,19 +344,26 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "4 + a.mat * 0.54 - b.mdf * 0.16",
+   "formula": "4.815 + a.mat * 0.65 - b.mdf * 0.193",
    "type": 1,
    "variance": 15
   },
   "description": "[WATER] Blasts the foe with a pulsing ring of water.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 8,
+    "value1": 0.2,
+    "value2": 0
+   }
+  ],
   "hitType": 2,
   "iconIndex": 67,
   "message1": "%1 used Water Pulse!",
   "message2": "",
   "mpCost": 5,
   "name": "Water Pulse",
-  "note": "",
+  "note": "<tags: pulse>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -354,7 +382,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "5 + a.atk * 0.58 - b.def * 0.18",
+   "formula": "6.034 + a.atk * 0.7 - b.def * 0.217",
    "type": 1,
    "variance": 15
   },
@@ -385,7 +413,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "7 + a.mat * 0.7 - b.mdf * 0.18",
+   "formula": "9 + a.mat * 0.9 - b.mdf * 0.231",
    "type": 1,
    "variance": 15
   },
@@ -416,7 +444,7 @@
   "damage": {
    "critical": true,
    "elementId": 4,
-   "formula": "2.8 + a.atk * 0.48 - b.def * 0.16",
+   "formula": "3.208 + a.atk * 0.55 - b.def * 0.183",
    "type": 1,
    "variance": 15
   },
@@ -447,7 +475,7 @@
   "damage": {
    "critical": true,
    "elementId": 4,
-   "formula": "4 + a.atk * 0.54 - b.def * 0.16",
+   "formula": "4.815 + a.atk * 0.65 - b.def * 0.193",
    "type": 1,
    "variance": 15
   },
@@ -459,7 +487,7 @@
   "message2": "",
   "mpCost": 5,
   "name": "Razor Leaf",
-  "note": "",
+  "note": "<tags: slicing>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -509,7 +537,7 @@
   "damage": {
    "critical": true,
    "elementId": 4,
-   "formula": "7 + a.atk * 0.7 - b.def * 0.18",
+   "formula": "12 + a.atk * 1.2 - b.def * 0.309",
    "type": 1,
    "variance": 15
   },
@@ -540,12 +568,19 @@
   "damage": {
    "critical": true,
    "elementId": 5,
-   "formula": "3 + a.atk * 0.48 - b.def * 0.16",
+   "formula": "3.438 + a.atk * 0.55 - b.def * 0.183",
    "type": 1,
    "variance": 15
   },
   "description": "[VOLT] Tackle charged with crackling static electricity.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 12,
+    "value1": 0.3,
+    "value2": 0
+   }
+  ],
   "hitType": 1,
   "iconIndex": 66,
   "message1": "%1 used Spark!",
@@ -571,12 +606,19 @@
   "damage": {
    "critical": true,
    "elementId": 5,
-   "formula": "4.2 + a.mat * 0.54 - b.mdf * 0.16",
+   "formula": "5.056 + a.mat * 0.65 - b.mdf * 0.193",
    "type": 1,
    "variance": 15
   },
   "description": "[VOLT] Hurls a bolt of lightning at the opponent.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 12,
+    "value1": 0.1,
+    "value2": 0
+   }
+  ],
   "hitType": 2,
   "iconIndex": 66,
   "message1": "%1 used Thunder Shock!",
@@ -602,7 +644,7 @@
   "damage": {
    "critical": true,
    "elementId": 5,
-   "formula": "6.4 + a.atk * 0.66 - b.def * 0.18",
+   "formula": "11.636 + a.atk * 1.2 - b.def * 0.327",
    "type": 1,
    "variance": 15
   },
@@ -633,7 +675,7 @@
   "damage": {
    "critical": true,
    "elementId": 7,
-   "formula": "2.8 + a.mat * 0.48 - b.mdf * 0.16",
+   "formula": "3.208 + a.mat * 0.55 - b.mdf * 0.183",
    "type": 1,
    "variance": 15
   },
@@ -664,7 +706,7 @@
   "damage": {
    "critical": true,
    "elementId": 7,
-   "formula": "4 + a.atk * 0.54 - b.def * 0.16",
+   "formula": "4.815 + a.atk * 0.65 - b.def * 0.193",
    "type": 1,
    "variance": 15
   },
@@ -676,7 +718,7 @@
   "message2": "",
   "mpCost": 5,
   "name": "Wing Slash",
-  "note": "",
+  "note": "<tags: slicing>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -695,7 +737,7 @@
   "damage": {
    "critical": true,
    "elementId": 7,
-   "formula": "6.6 + a.atk * 0.68 - b.def * 0.18",
+   "formula": "8.25 + a.atk * 0.85 - b.def * 0.225",
    "type": 1,
    "variance": 15
   },
@@ -726,7 +768,7 @@
   "damage": {
    "critical": true,
    "elementId": 6,
-   "formula": "3 + a.atk * 0.5 - b.def * 0.16",
+   "formula": "3.3 + a.atk * 0.55 - b.def * 0.176",
    "type": 1,
    "variance": 15
   },
@@ -757,7 +799,7 @@
   "damage": {
    "critical": true,
    "elementId": 6,
-   "formula": "4.2 + a.mat * 0.54 - b.mdf * 0.16",
+   "formula": "5.056 + a.mat * 0.65 - b.mdf * 0.193",
    "type": 1,
    "variance": 15
   },
@@ -769,7 +811,7 @@
   "message2": "",
   "mpCost": 5,
   "name": "Mud Bomb",
-  "note": "",
+  "note": "<tags: ballistic>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -788,7 +830,7 @@
   "damage": {
    "critical": true,
    "elementId": 6,
-   "formula": "6.8 + a.atk * 0.68 - b.def * 0.18",
+   "formula": "8.5 + a.atk * 0.85 - b.def * 0.225",
    "type": 1,
    "variance": 15
   },
@@ -819,7 +861,7 @@
   "damage": {
    "critical": true,
    "elementId": 2,
-   "formula": "8.4 + a.mat * 0.8 - b.mdf * 0.2",
+   "formula": "10.5 + a.mat * 1 - b.mdf * 0.25",
    "type": 1,
    "variance": 15
   },
@@ -850,7 +892,7 @@
   "damage": {
    "critical": true,
    "elementId": 2,
-   "formula": "9.2 + a.atk * 0.84 - b.def * 0.2",
+   "formula": "10.952 + a.atk * 1 - b.def * 0.238",
    "type": 1,
    "variance": 15
   },
@@ -881,7 +923,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "8.8 + a.mat * 0.8 - b.mdf * 0.2",
+   "formula": "13.2 + a.mat * 1.2 - b.mdf * 0.3",
    "type": 1,
    "variance": 15
   },
@@ -912,7 +954,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "9.6 + a.mat * 0.84 - b.mdf * 0.2",
+   "formula": "11.429 + a.mat * 1 - b.mdf * 0.238",
    "type": 1,
    "variance": 15
   },
@@ -974,7 +1016,7 @@
   "damage": {
    "critical": true,
    "elementId": 4,
-   "formula": "7.2 + a.mat * 0.72 - b.mdf * 0.18",
+   "formula": "7.5 + a.mat * 0.75 - b.mdf * 0.188",
    "type": 5,
    "variance": 15
   },
@@ -1005,7 +1047,7 @@
   "damage": {
    "critical": true,
    "elementId": 5,
-   "formula": "7 + a.mat * 0.72 - b.mdf * 0.18",
+   "formula": "8.75 + a.mat * 0.9 - b.mdf * 0.225",
    "type": 1,
    "variance": 15
   },
@@ -1036,7 +1078,7 @@
   "damage": {
    "critical": true,
    "elementId": 5,
-   "formula": "9 + a.mat * 0.82 - b.mdf * 0.2",
+   "formula": "12.073 + a.mat * 1.1 - b.mdf * 0.268",
    "type": 1,
    "variance": 15
   },
@@ -1067,12 +1109,19 @@
   "damage": {
    "critical": true,
    "elementId": 5,
-   "formula": "2.8 + a.atk * 0.30 - b.def * 0.16",
+   "formula": "2.333 + a.atk * 0.25 - b.def * 0.133",
    "type": 1,
    "variance": 15
   },
   "description": "[VOLT] Pierces the foe twice with electro-charged stingers.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 4,
+    "value1": 0.2,
+    "value2": 0
+   }
+  ],
   "hitType": 1,
   "iconIndex": 66,
   "message1": "%1 used Twin Needle!",
@@ -1098,7 +1147,7 @@
   "damage": {
    "critical": true,
    "elementId": 6,
-   "formula": "9 + a.atk * 0.82 - b.def * 0.2",
+   "formula": "10.976 + a.atk * 1 - b.def * 0.244",
    "type": 1,
    "variance": 15
   },
@@ -1129,7 +1178,7 @@
   "damage": {
    "critical": true,
    "elementId": 6,
-   "formula": "7.6 + a.atk * 0.76 - b.def * 0.18",
+   "formula": "10 + a.atk * 1 - b.def * 0.237",
    "type": 1,
    "variance": 15
   },
@@ -1149,7 +1198,7 @@
   "scope": 1,
   "speed": 0,
   "stypeId": 1,
-  "successRate": 95,
+  "successRate": 80,
   "tpCost": 0,
   "tpGain": 0,
   "messageType": 1
@@ -1160,7 +1209,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "3.6 + a.atk * 0.52 - b.def * 0.16",
+   "formula": "4.154 + a.atk * 0.6 - b.def * 0.185",
    "type": 1,
    "variance": 15
   },
@@ -1191,7 +1240,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "7.2 + a.atk * 0.72 - b.def * 0.18",
+   "formula": "8.5 + a.atk * 0.85 - b.def * 0.212",
    "type": 1,
    "variance": 15
   },
@@ -1222,7 +1271,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "4.4 + a.atk * 0.54 - b.def * 0.16",
+   "formula": "4.889 + a.atk * 0.6 - b.def * 0.178",
    "type": 1,
    "variance": 15
   },
@@ -1230,7 +1279,7 @@
   "effects": [
    {
     "code": 21,
-    "dataId": 4,
+    "dataId": 31,
     "value1": 0.5,
     "value2": 0
    }
@@ -1260,7 +1309,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "3.2 + a.atk * 0.48 - b.def * 0.16",
+   "formula": "2.667 + a.atk * 0.4 - b.def * 0.133",
    "type": 1,
    "variance": 15
   },
@@ -1291,7 +1340,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "4.8 + a.mat * 0.58 - b.mdf * 0.18",
+   "formula": "6.621 + a.mat * 0.8 - b.mdf * 0.248",
    "type": 1,
    "variance": 15
   },
@@ -1303,7 +1352,7 @@
   "message2": "",
   "mpCost": 7,
   "name": "Dark Pulse",
-  "note": "",
+  "note": "<tags: pulse>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -1322,7 +1371,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "6.4 + a.atk * 0.64 - b.def * 0.18",
+   "formula": "7 + a.atk * 0.7 - b.def * 0.197",
    "type": 1,
    "variance": 15
   },
@@ -1334,7 +1383,7 @@
   "message2": "",
   "mpCost": 9,
   "name": "Night Slash",
-  "note": "",
+  "note": "<tags: slicing>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -1353,7 +1402,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "8.8 + a.mat * 0.8 - b.mdf * 0.2",
+   "formula": "10.45 + a.mat * 0.95 - b.mdf * 0.238",
    "type": 1,
    "variance": 15
   },
@@ -1382,18 +1431,18 @@
   "id": 45,
   "animationId": 101,
   "damage": {
-   "critical": true,
+   "critical": false,
    "elementId": 8,
-   "formula": "3.6 + a.mat * 0.5 - b.mdf * 0.16",
-   "type": 1,
-   "variance": 15
+   "formula": "0",
+   "type": 0,
+   "variance": 0
   },
-  "description": "[UMBRA] Manifests haunting ghost flames that burn the foe.",
+  "description": "[UMBRA] Haunting ghost flames that always burn the foe.",
   "effects": [
    {
     "code": 21,
     "dataId": 11,
-    "value1": 0.85,
+    "value1": 1.0,
     "value2": 0
    }
   ],
@@ -1411,7 +1460,7 @@
   "scope": 1,
   "speed": 0,
   "stypeId": 1,
-  "successRate": 100,
+  "successRate": 85,
   "tpCost": 0,
   "tpGain": 0,
   "messageType": 1
@@ -1422,7 +1471,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "7.6 + a.mat * 0.74 - b.mdf * 0.18",
+   "formula": "8.73 + a.mat * 0.85 - b.mdf * 0.207",
    "type": 5,
    "variance": 15
   },
@@ -1453,12 +1502,19 @@
   "damage": {
    "critical": true,
    "elementId": 9,
-   "formula": "4 + a.mat * 0.54 - b.mdf * 0.16",
+   "formula": "4.815 + a.mat * 0.65 - b.mdf * 0.193",
    "type": 1,
    "variance": 15
   },
   "description": "[ASTRAL] Projects a focused ray of pure psychic energy.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 8,
+    "value1": 0.1,
+    "value2": 0
+   }
+  ],
   "hitType": 2,
   "iconIndex": 70,
   "message1": "%1 used Psybeam!",
@@ -1484,7 +1540,7 @@
   "damage": {
    "critical": true,
    "elementId": 9,
-   "formula": "6 + a.mat * 0.64 - b.mdf * 0.18",
+   "formula": "7.031 + a.mat * 0.75 - b.mdf * 0.211",
    "type": 1,
    "variance": 15
   },
@@ -1515,7 +1571,7 @@
   "damage": {
    "critical": true,
    "elementId": 9,
-   "formula": "8.4 + a.mat * 0.78 - b.mdf * 0.2",
+   "formula": "9.692 + a.mat * 0.9 - b.mdf * 0.231",
    "type": 1,
    "variance": 15
   },
@@ -1546,7 +1602,7 @@
   "damage": {
    "critical": true,
    "elementId": 9,
-   "formula": "10.4 + a.mat * 0.9 - b.mdf * 0.2",
+   "formula": "13.867 + a.mat * 1.2 - b.mdf * 0.267",
    "type": 1,
    "variance": 15
   },
@@ -1558,7 +1614,7 @@
   "message2": "",
   "mpCost": 20,
   "name": "Supernova",
-  "note": "",
+  "note": "<tags: explosive>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -1577,7 +1633,7 @@
   "damage": {
    "critical": true,
    "elementId": 1,
-   "formula": "4.8 + a.atk * 0.56 - b.def * 0.18",
+   "formula": "5.571 + a.atk * 0.65 - b.def * 0.209",
    "type": 1,
    "variance": 15
   },
@@ -1652,7 +1708,7 @@
   "damage": {
    "critical": true,
    "elementId": 1,
-   "formula": "7.6 + a.atk * 0.74 - b.def * 0.18",
+   "formula": "8.73 + a.atk * 0.85 - b.def * 0.207",
    "type": 1,
    "variance": 15
   },
@@ -1664,7 +1720,7 @@
   "message2": "",
   "mpCost": 12,
   "name": "Mega Punch",
-  "note": "",
+  "note": "<tags: punch>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -1683,12 +1739,19 @@
   "damage": {
    "critical": true,
    "elementId": 2,
-   "formula": "11 + a.mat * 0.92 - b.mdf * 0.2",
+   "formula": "13.152 + a.mat * 1.1 - b.mdf * 0.239",
    "type": 1,
    "variance": 15
   },
   "description": "[FIRE] Mythical fire that consumes both body and spirit.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 11,
+    "value1": 0.5,
+    "value2": 0
+   }
+  ],
   "hitType": 2,
   "iconIndex": 64,
   "message1": "%1 used Sacred Fire!",
@@ -1745,7 +1808,7 @@
   "damage": {
    "critical": true,
    "elementId": 6,
-   "formula": "11.6 + a.atk * 0.94 - b.def * 0.2",
+   "formula": "14.809 + a.atk * 1.2 - b.def * 0.255",
    "type": 1,
    "variance": 15
   },
@@ -1826,7 +1889,7 @@
   },
   "description": "[WATER] Hurls chilling shards of frozen ice.",
   "effects": [],
-  "hitType": 1,
+  "hitType": 2,
   "iconIndex": 111,
   "message1": " casts Ice Shard!",
   "message2": "",
@@ -1838,7 +1901,7 @@
   "requiredWtypeId1": 0,
   "requiredWtypeId2": 0,
   "scope": 1,
-  "speed": 2,
+  "speed": 200,
   "stypeId": 0,
   "successRate": 100,
   "tpCost": 0,
@@ -1851,12 +1914,19 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "a.mat * 0.7 - b.mdf * 0.36",
+   "formula": "a.mat * 1.1 - b.mdf * 0.566",
    "type": 1,
    "variance": 20
   },
   "description": "[WATER] Summons a howling sub-zero blizzard.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 14,
+    "value1": 0.1,
+    "value2": 0
+   }
+  ],
   "hitType": 2,
   "iconIndex": 112,
   "message1": " summons a fierce Blizzard!",
@@ -1871,7 +1941,7 @@
   "scope": 1,
   "speed": 0,
   "stypeId": 0,
-  "successRate": 100,
+  "successRate": 70,
   "tpCost": 0,
   "tpGain": 5,
   "messageType": 1
@@ -1882,7 +1952,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "a.mat * 1.04 - b.mdf * 0.44",
+   "formula": "a.mat * 1.3 - b.mdf * 0.55",
    "type": 1,
    "variance": 10
   },
@@ -1913,7 +1983,7 @@
   "damage": {
    "critical": true,
    "elementId": 4,
-   "formula": "a.mat * 0.72 - b.mdf * 0.36",
+   "formula": "a.mat * 1.3 - b.mdf * 0.65",
    "type": 1,
    "variance": 15
   },
@@ -1944,7 +2014,7 @@
   "damage": {
    "critical": true,
    "elementId": 4,
-   "formula": "a.mat * 0.76 - b.mdf * 0.3",
+   "formula": "a.mat * 0.95 - b.mdf * 0.375",
    "type": 1,
    "variance": 10
   },
@@ -1975,7 +2045,7 @@
   "damage": {
    "critical": true,
    "elementId": 6,
-   "formula": "a.atk * 0.68 - b.def * 0.36",
+   "formula": "a.atk * 0.75 - b.def * 0.397",
    "type": 1,
    "variance": 15
   },
@@ -2006,12 +2076,19 @@
   "damage": {
    "critical": true,
    "elementId": 7,
-   "formula": "a.mat * 0.84 - b.mdf * 0.4",
+   "formula": "a.mat * 1.1 - b.mdf * 0.524",
    "type": 1,
    "variance": 20
   },
   "description": "[WIND] Summons devastating atmospheric winds.",
-  "effects": [],
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 8,
+    "value1": 0.3,
+    "value2": 0
+   }
+  ],
   "hitType": 2,
   "iconIndex": 78,
   "message1": " summons a roaring Hurricane!",
@@ -2026,7 +2103,7 @@
   "scope": 1,
   "speed": 0,
   "stypeId": 0,
-  "successRate": 90,
+  "successRate": 70,
   "tpCost": 0,
   "tpGain": 5,
   "messageType": 1
@@ -2037,7 +2114,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "a.mat * 0.72 - b.mdf * 0.32",
+   "formula": "a.mat * 0.85 - b.mdf * 0.378",
    "type": 1,
    "variance": 15
   },
@@ -2068,7 +2145,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "a.mat * 0.8 - b.mdf * 0.38",
+   "formula": "a.mat * 0.95 - b.mdf * 0.451",
    "type": 1,
    "variance": 25
   },
@@ -2099,7 +2176,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "a.mat * 0.96 - b.mdf * 0.4",
+   "formula": "a.mat * 1.2 - b.mdf * 0.5",
    "type": 1,
    "variance": 10
   },
@@ -2130,7 +2207,7 @@
   "damage": {
    "critical": true,
    "elementId": 3,
-   "formula": "a.mat * 1.3 - b.mdf * 0.5",
+   "formula": "a.mat * 1.4 - b.mdf * 0.538",
    "type": 1,
    "variance": 10
   },
@@ -2161,7 +2238,7 @@
   "damage": {
    "critical": true,
    "elementId": 9,
-   "formula": "a.mat * 1 - b.mdf * 0.4",
+   "formula": "a.mat * 1.1 - b.mdf * 0.44",
    "type": 1,
    "variance": 10
   },
@@ -2192,7 +2269,7 @@
   "damage": {
    "critical": true,
    "elementId": 9,
-   "formula": "a.mat * 1.36 - b.mdf * 0.48",
+   "formula": "a.mat * 1.5 - b.mdf * 0.529",
    "type": 1,
    "variance": 5
   },
@@ -2223,7 +2300,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "a.atk * 1.04 - b.def * 0.4",
+   "formula": "a.atk * 1.2 - b.def * 0.462",
    "type": 1,
    "variance": 10
   },
@@ -2235,7 +2312,7 @@
   "message2": "",
   "mpCost": 28,
   "name": "Eclipse Slash",
-  "note": "",
+  "note": "<tags: slicing>",
   "occasion": 1,
   "repeats": 1,
   "requiredWtypeId1": 0,
@@ -2254,7 +2331,7 @@
   "damage": {
    "critical": true,
    "elementId": 8,
-   "formula": "a.mat * 1.4 - b.mdf * 0.5",
+   "formula": "a.mat * 1.5 - b.mdf * 0.536",
    "type": 1,
    "variance": 5
   },
@@ -2278,5 +2355,456 @@
   "tpCost": 0,
   "tpGain": 5,
   "messageType": 1
+ },
+ {
+  "animationId": 52,
+  "damage": {
+   "critical": false,
+   "elementId": 9,
+   "formula": "0",
+   "type": 0,
+   "variance": 15
+  },
+  "description": "[ASTRAL] Centers the mind, raising MAT and MDF.",
+  "effects": [
+   {
+    "code": 31,
+    "dataId": 4,
+    "value1": 1,
+    "value2": 0
+   },
+   {
+    "code": 31,
+    "dataId": 5,
+    "value1": 1,
+    "value2": 0
+   }
+  ],
+  "hitType": 0,
+  "iconIndex": 81,
+  "message1": "%1 used Astral Calm!",
+  "message2": "",
+  "mpCost": 8,
+  "name": "Astral Calm",
+  "note": "",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 11,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 73
+ },
+ {
+  "animationId": 52,
+  "damage": {
+   "critical": false,
+   "elementId": 7,
+   "formula": "0",
+   "type": 0,
+   "variance": 15
+  },
+  "description": "[WIND] Rides the wind, sharply raising AGI.",
+  "effects": [
+   {
+    "code": 31,
+    "dataId": 6,
+    "value1": 1,
+    "value2": 0
+   },
+   {
+    "code": 31,
+    "dataId": 6,
+    "value1": 1,
+    "value2": 0
+   }
+  ],
+  "hitType": 0,
+  "iconIndex": 81,
+  "message1": "%1 used Gale Step!",
+  "message2": "",
+  "mpCost": 8,
+  "name": "Gale Step",
+  "note": "",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 11,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 74
+ },
+ {
+  "animationId": 16,
+  "damage": {
+   "critical": true,
+   "elementId": 8,
+   "formula": "4.4 + a.mat * 0.55 - b.mdf * 0.16",
+   "type": 1,
+   "variance": 15
+  },
+  "description": "[UMBRA] A dreadful snarl that lowers the foe's ATK.",
+  "effects": [],
+  "hitType": 2,
+  "iconIndex": 67,
+  "message1": "%1 used Dread Snarl!",
+  "message2": "",
+  "mpCost": 6,
+  "name": "Dread Snarl",
+  "note": "<tags: sound>",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 1,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 75
+ },
+ {
+  "animationId": 16,
+  "damage": {
+   "critical": true,
+   "elementId": 9,
+   "formula": "4.4 + a.mat * 0.55 - b.mdf * 0.16",
+   "type": 1,
+   "variance": 15
+  },
+  "description": "[ASTRAL] A mind-dulling fog that lowers the foe's MAT.",
+  "effects": [],
+  "hitType": 2,
+  "iconIndex": 67,
+  "message1": "%1 used Psyche Fog!",
+  "message2": "",
+  "mpCost": 6,
+  "name": "Psyche Fog",
+  "note": "",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 1,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 76
+ },
+ {
+  "animationId": 16,
+  "damage": {
+   "critical": true,
+   "elementId": 6,
+   "formula": "7 + a.atk * 0.85 - b.def * 0.18",
+   "type": 1,
+   "variance": 15
+  },
+  "description": "[EARTH] A crushing slam that may lower the foe's DEF.",
+  "effects": [],
+  "hitType": 1,
+  "iconIndex": 67,
+  "message1": "%1 used Sundering Slam!",
+  "message2": "",
+  "mpCost": 9,
+  "name": "Sundering Slam",
+  "note": "",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 1,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 77
+ },
+ {
+  "animationId": 16,
+  "damage": {
+   "critical": true,
+   "elementId": 4,
+   "formula": "5.2 + a.mat * 0.65 - b.mdf * 0.16",
+   "type": 1,
+   "variance": 15
+  },
+  "description": "[NATURE] Corrosive spores that may lower the foe's MDF.",
+  "effects": [],
+  "hitType": 2,
+  "iconIndex": 67,
+  "message1": "%1 used Corrosive Spores!",
+  "message2": "",
+  "mpCost": 7,
+  "name": "Corrosive Spores",
+  "note": "<tags: powder>",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 1,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 78
+ },
+ {
+  "animationId": 101,
+  "damage": {
+   "critical": false,
+   "elementId": 6,
+   "formula": "0",
+   "type": 0,
+   "variance": 15
+  },
+  "description": "[EARTH] Kicks up a dust veil that lowers the foe's ACC.",
+  "effects": [],
+  "hitType": 2,
+  "iconIndex": 71,
+  "message1": "%1 used Dust Veil!",
+  "message2": "",
+  "mpCost": 5,
+  "name": "Dust Veil",
+  "note": "",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 1,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 79
+ },
+ {
+  "animationId": 52,
+  "damage": {
+   "critical": false,
+   "elementId": 6,
+   "formula": "0",
+   "type": 0,
+   "variance": 15
+  },
+  "description": "[EARTH] Braces behind an iron stance, sharply raising DEF.",
+  "effects": [
+   {
+    "code": 31,
+    "dataId": 3,
+    "value1": 1,
+    "value2": 0
+   },
+   {
+    "code": 31,
+    "dataId": 3,
+    "value1": 1,
+    "value2": 0
+   }
+  ],
+  "hitType": 0,
+  "iconIndex": 81,
+  "message1": "%1 used Iron Stance!",
+  "message2": "",
+  "mpCost": 8,
+  "name": "Iron Stance",
+  "note": "",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 11,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 80
+ },
+ {
+  "animationId": 52,
+  "damage": {
+   "critical": false,
+   "elementId": 1,
+   "formula": "0",
+   "type": 0,
+   "variance": 15
+  },
+  "description": "[NORMAL] A fierce war dance, sharply raising ATK.",
+  "effects": [
+   {
+    "code": 31,
+    "dataId": 2,
+    "value1": 1,
+    "value2": 0
+   },
+   {
+    "code": 31,
+    "dataId": 2,
+    "value1": 1,
+    "value2": 0
+   }
+  ],
+  "hitType": 0,
+  "iconIndex": 81,
+  "message1": "%1 used War Dance!",
+  "message2": "",
+  "mpCost": 8,
+  "name": "War Dance",
+  "note": "<tags: dance>",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 11,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 81
+ },
+ {
+  "animationId": 52,
+  "damage": {
+   "critical": false,
+   "elementId": 8,
+   "formula": "0",
+   "type": 0,
+   "variance": 15
+  },
+  "description": "[UMBRA] Schemes in darkness, sharply raising MAT.",
+  "effects": [
+   {
+    "code": 31,
+    "dataId": 4,
+    "value1": 1,
+    "value2": 0
+   },
+   {
+    "code": 31,
+    "dataId": 4,
+    "value1": 1,
+    "value2": 0
+   }
+  ],
+  "hitType": 0,
+  "iconIndex": 81,
+  "message1": "%1 used Dark Scheme!",
+  "message2": "",
+  "mpCost": 8,
+  "name": "Dark Scheme",
+  "note": "",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 11,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 100,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 82
+ },
+ {
+  "animationId": 101,
+  "damage": {
+   "critical": false,
+   "elementId": 5,
+   "formula": "0",
+   "type": 0,
+   "variance": 15
+  },
+  "description": "[VOLT] A charged web that paralyzes the foe.",
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 12,
+    "value1": 1.0,
+    "value2": 0
+   }
+  ],
+  "hitType": 2,
+  "iconIndex": 71,
+  "message1": "%1 used Static Web!",
+  "message2": "",
+  "mpCost": 6,
+  "name": "Static Web",
+  "note": "",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 1,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 90,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 83
+ },
+ {
+  "animationId": 101,
+  "damage": {
+   "critical": false,
+   "elementId": 4,
+   "formula": "0",
+   "type": 0,
+   "variance": 15
+  },
+  "description": "[NATURE] Sleepy spores that put the foe to sleep.",
+  "effects": [
+   {
+    "code": 21,
+    "dataId": 10,
+    "value1": 1.0,
+    "value2": 0
+   }
+  ],
+  "hitType": 2,
+  "iconIndex": 71,
+  "message1": "%1 used Slumber Spores!",
+  "message2": "",
+  "mpCost": 8,
+  "name": "Slumber Spores",
+  "note": "<tags: powder>",
+  "occasion": 1,
+  "repeats": 1,
+  "requiredWtypeId1": 0,
+  "requiredWtypeId2": 0,
+  "scope": 1,
+  "speed": 0,
+  "stypeId": 1,
+  "successRate": 85,
+  "tpCost": 0,
+  "tpGain": 0,
+  "messageType": 1,
+  "id": 84
  }
 ]

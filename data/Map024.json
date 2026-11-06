@@ -2111,34 +2111,31 @@
               ]
             },
             {
-              "code": 301,
+              "code": 355,
               "indent": 0,
               "parameters": [
-                0,
-                27,
-                false,
-                false
+                "GanjukoEngine.startTrainerBattle('Gym Leader Astraea', [{ speciesId: 83, level: 45 }, { speciesId: 56, level: 46 }, { speciesId: 27, level: 47 }, { speciesId: 84, level: 47 }, { speciesId: 57, level: 48 }], 8500, 'Battle3', 30);"
               ]
             },
             {
-              "code": 121,
+              "code": 111,
               "indent": 0,
               "parameters": [
-                30,
+                0,
                 30,
                 0
               ]
             },
             {
               "code": 355,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "$gameSystem.awardBadge('Astral Badge');"
               ]
             },
             {
               "code": 126,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 21,
                 0,
@@ -2148,7 +2145,7 @@
             },
             {
               "code": 126,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 3,
                 0,
@@ -2158,7 +2155,7 @@
             },
             {
               "code": 250,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 {
                   "name": "Fanfare1",
@@ -2170,7 +2167,7 @@
             },
             {
               "code": 101,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "",
                 0,
@@ -2181,21 +2178,21 @@
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "A truly celestial victory! You have conquered all 8 Elemental Gyms!"
               ]
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "With the \\C[14]Astral Badge\\C[0], the gates of \\C[14]Victory Road\\C[0] now open for you!"
               ]
             },
             {
               "code": 101,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "",
                 0,
@@ -2206,10 +2203,15 @@
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "\\C[14]You received the ASTRAL BADGE and a MASTER ORB!\\C[0]"
               ]
+            },
+            {
+              "code": 412,
+              "indent": 0,
+              "parameters": []
             },
             {
               "code": 0,

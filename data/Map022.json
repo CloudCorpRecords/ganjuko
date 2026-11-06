@@ -2111,34 +2111,31 @@
               ]
             },
             {
-              "code": 301,
+              "code": 355,
               "indent": 0,
               "parameters": [
-                0,
-                25,
-                false,
-                false
+                "GanjukoEngine.startTrainerBattle('Gym Leader Morbius', [{ speciesId: 107, level: 41 }, { speciesId: 23, level: 42 }, { speciesId: 108, level: 43 }, { speciesId: 81, level: 44 }], 7500, 'Battle3', 29);"
               ]
             },
             {
-              "code": 121,
+              "code": 111,
               "indent": 0,
               "parameters": [
-                29,
+                0,
                 29,
                 0
               ]
             },
             {
               "code": 355,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "$gameSystem.awardBadge('Eclipse Badge');"
               ]
             },
             {
               "code": 126,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 20,
                 0,
@@ -2148,7 +2145,7 @@
             },
             {
               "code": 126,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 3,
                 0,
@@ -2158,7 +2155,7 @@
             },
             {
               "code": 250,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 {
                   "name": "Fanfare1",
@@ -2170,7 +2167,7 @@
             },
             {
               "code": 101,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "",
                 0,
@@ -2181,21 +2178,21 @@
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "Astounding luminance! Your team pierced right through my night shroud."
               ]
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "Take this \\C[14]Eclipse Badge\\C[0]. Only one gym remains before the League!"
               ]
             },
             {
               "code": 101,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "",
                 0,
@@ -2206,10 +2203,15 @@
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "\\C[14]You received the ECLIPSE BADGE and a MASTER ORB!\\C[0]"
               ]
+            },
+            {
+              "code": 412,
+              "indent": 0,
+              "parameters": []
             },
             {
               "code": 0,

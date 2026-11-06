@@ -5439,7 +5439,7 @@
               "code": 355,
               "indent": 0,
               "parameters": [
-                "GanjukoEngine.startTrainerBattle('Sky Watcher Sora', [{ speciesId: 8, level: 4 }, { speciesId: 7, level: 5 }], 320, 'Battle2', 7);"
+                "GanjukoEngine.startTrainerBattle('Sky Watcher Sora', [{ speciesId: 14, level: 4 }, { speciesId: 10, level: 5 }], 320, 'Battle2', 7);"
               ]
             },
             {

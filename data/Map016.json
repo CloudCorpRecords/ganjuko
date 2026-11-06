@@ -2111,34 +2111,31 @@
               ]
             },
             {
-              "code": 301,
+              "code": 355,
               "indent": 0,
               "parameters": [
-                0,
-                6,
-                false,
-                false
+                "GanjukoEngine.startTrainerBattle('Gym Leader Sylva', [{ speciesId: 8, level: 25 }, { speciesId: 68, level: 26 }, { speciesId: 176, level: 27 }, { speciesId: 9, level: 28 }], 4500, 'Battle3', 26);"
               ]
             },
             {
-              "code": 121,
+              "code": 111,
               "indent": 0,
               "parameters": [
-                26,
+                0,
                 26,
                 0
               ]
             },
             {
               "code": 355,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "$gameSystem.awardBadge('Canopy Badge');"
               ]
             },
             {
               "code": 126,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 17,
                 0,
@@ -2148,7 +2145,7 @@
             },
             {
               "code": 126,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 3,
                 0,
@@ -2158,7 +2155,7 @@
             },
             {
               "code": 250,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 {
                   "name": "Fanfare1",
@@ -2170,7 +2167,7 @@
             },
             {
               "code": 101,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "",
                 0,
@@ -2181,21 +2178,21 @@
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "Remarkable vitality! The forest itself recognizes your harmony."
               ]
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "Take the official \\C[14]Canopy Badge\\C[0] and continue your ascent!"
               ]
             },
             {
               "code": 101,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "",
                 0,
@@ -2206,10 +2203,15 @@
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "\\C[14]You received the CANOPY BADGE and a MASTER ORB!\\C[0]"
               ]
+            },
+            {
+              "code": 412,
+              "indent": 0,
+              "parameters": []
             },
             {
               "code": 0,

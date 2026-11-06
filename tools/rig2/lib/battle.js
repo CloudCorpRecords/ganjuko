@@ -301,7 +301,17 @@ async function battleStep(session, st, opts, ctx) {
   if (st.skill) {
     // Skill window already open (an earlier step got FIGHT confirmed):
     // finish the selection rather than idling until the timeout.
-    const r = await fightViaUI(session, opts.strategy === "spar" ? "spar" : "best");
+    // FR4 rig fix: in capture mode this window can only have been opened
+    // by a weaken ("spar") selection — capture throws go through the
+    // BAG/item window, never the skill window. Resuming it with "best"
+    // (the old behavior when capture passed no strategy) completes the
+    // interrupted weaken with the STRONGEST move and one-shots the
+    // target: the systematic win-without-catch failure root-caused in
+    // the CHAMPIONS-V13 report's 2026-11-03 addendum §1. While throws
+    // remain, complete the selection with the weaken move instead.
+    // Once throws are exhausted the finish-off fight keeps "best".
+    const capturing = opts.capture && ctx.throws < (opts.capture.maxThrows || 8);
+    const r = await fightViaUI(session, capturing || opts.strategy === "spar" ? "spar" : "best");
     ctx.lastAction = { kind: "fight-resume", ...r };
     await sleep(900);
     return;
@@ -323,10 +333,32 @@ async function battleStep(session, st, opts, ctx) {
   await sleep(pollMs);
 }
 
+// Engine-outcome recorder for driveBattle (runtime-only, idempotent):
+// wraps BattleManager.processVictory/processDefeat/processAbort so the
+// driver can read the ENGINE's declared outcome instead of inferring one
+// from HP samples. Reset at the start of every drive.
+async function installOutcomeHook(session) {
+  await session.evSafe(`(function(){
+    if (!window.__rig2OutcomeHooks) {
+      window.__rig2OutcomeHooks = true;
+      const pv = BattleManager.processVictory, pd = BattleManager.processDefeat, pa = BattleManager.processAbort;
+      BattleManager.processVictory = function() { window.__rig2Outcome = "win"; return pv.apply(this, arguments); };
+      BattleManager.processDefeat = function() { window.__rig2Outcome = "defeat"; return pd.apply(this, arguments); };
+      BattleManager.processAbort = function() { if (!window.__rig2Outcome) window.__rig2Outcome = "abort"; return pa.apply(this, arguments); };
+    }
+    window.__rig2Outcome = null;
+    return 1;
+  })()`);
+}
+function readOutcome(session) {
+  return session.evSafe("(function(){ return window.__rig2Outcome || null; })()");
+}
+
 // Drive the currently-running (or about-to-start) battle to its end.
 // Returns { outcome: 'win'|'defeat'|'ended'|'timeout', turns, actions, lastAction }.
 async function driveBattle(session, opts = {}) {
   const timeoutMs = opts.timeoutMs || 240000;
+  await installOutcomeHook(session);
   const ctx = { evoPressed: false, itemUsed: false, throws: 0, lastAction: null };
   const actionsBefore = (await readActions(session)).length;
   const t0 = Date.now();
@@ -339,11 +371,35 @@ async function driveBattle(session, opts = {}) {
     if (st.scene === "Scene_Battle") sawBattle = true;
     if (st.scene === "Scene_Gameover") return { outcome: "defeat", turns: maxTurn, actions: (await readActions(session)).slice(actionsBefore), lastAction: ctx.lastAction };
     if (st.scene === "Scene_Map" && sawBattle) {
-      const outcome = st.partyAlive === 0 ? "defeat" : (st.troopAlive === 0 ? "win" : "ended");
+      // The engine's declared outcome (processVictory/processDefeat hook)
+      // is ground truth. The sample-based fallback only covers endings
+      // that bypass all three hooks (e.g. capture's direct endBattle(0)).
+      const oc = await readOutcome(session);
+      const outcome = oc === "defeat" ? "defeat"
+        : oc === "win" ? "win"
+        : oc === "abort" ? "ended"
+        : (st.partyAlive === 0 ? "defeat" : (st.troopAlive === 0 ? "win" : "ended"));
       return { outcome, turns: maxTurn, actions: (await readActions(session)).slice(actionsBefore), lastAction: ctx.lastAction };
     }
     if (st.scene === "Scene_Battle" && st.partyAlive === 0) {
-      return { outcome: "defeat", turns: maxTurn, actions: (await readActions(session)).slice(actionsBefore), lastAction: ctx.lastAction };
+      // FR4 lane 8 — 1v1 promotion race: battles are 1v1
+      // (maxBattleMembers = 1), so $gameParty.aliveMembers() counts ONLY
+      // the standing battle member. This sample therefore reads 0 in
+      // the window between the lead's faint and the engine's
+      // auto-promotion of the next living bench member — it is NOT a
+      // defeat (reproduced live: the old branch returned "defeat" at
+      // turn 2 with two full-HP bench members standing and the engine
+      // having declared no outcome). A defeat may only be declared
+      // from the engine's own outcome (the processDefeat hook above,
+      // or Scene_Gameover). Otherwise keep driving: battleStep presses
+      // OK through the battleEnd phase, and when the engine promotes,
+      // the command window reopens for the promoted member.
+      const oc = await readOutcome(session);
+      if (oc === "defeat") {
+        return { outcome: "defeat", turns: maxTurn, actions: (await readActions(session)).slice(actionsBefore), lastAction: ctx.lastAction };
+      }
+      await sleep(700);
+      continue;
     }
     // Fail FAST when the battle never started: burning the full timeout on a
     // dropped scene push cost the first smoke run 9 minutes and said nothing.
@@ -428,7 +484,7 @@ async function driveStadiumRun(session, opts = {}) {
 }
 
 module.exports = {
-  installHooks, readActions, readLogs, battleState, windowState,
+  installHooks, installOutcomeHook, readOutcome, readActions, readLogs, battleState, windowState,
   moveCursorTo, scoreSkills, chooseSkill, fightViaUI, useItemViaUI,
   battleStep, driveBattle, driveGymEvent, driveStadiumRun, WIN,
 };

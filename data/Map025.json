@@ -4710,8 +4710,19 @@
       "pages": [
         {
           "conditions": {
-            "switchId": 1,
-            "switchValid": false
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
           },
           "image": {
             "characterIndex": 1,
@@ -4740,15 +4751,79 @@
               ]
             },
             {
-              "code": 301,
+              "code": 355,
+              "indent": 0,
+              "parameters": [
+                "GanjukoEngine.startTrainerBattle('Veteran Kaelen', [{ speciesId: 18, level: 47 }, { speciesId: 6, level: 48 }, { speciesId: 13, level: 48 }, { speciesId: 189, level: 49 }, { speciesId: 138, level: 50 }], 9000, 'Battle3', 31);"
+              ]
+            },
+            {
+              "code": 111,
               "indent": 0,
               "parameters": [
                 0,
-                32,
-                false,
-                false
+                31,
+                0
               ]
             },
+            {
+              "code": 101,
+              "indent": 1,
+              "parameters": [
+                "",
+                0,
+                0,
+                2,
+                "Veteran Kaelen"
+              ]
+            },
+            {
+              "code": 401,
+              "indent": 1,
+              "parameters": [
+                "You possess true championship strength. Pass onward!"
+              ]
+            },
+            {
+              "code": 412,
+              "indent": 0,
+              "parameters": []
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ],
+          "trigger": 0,
+          "priorityType": 1,
+          "walkAnime": true,
+          "stepAnime": false
+        },
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 31,
+            "switch1Valid": true,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "characterIndex": 1,
+            "characterName": "Actor3",
+            "direction": 2,
+            "pattern": 1,
+            "tileId": 0
+          },
+          "list": [
             {
               "code": 101,
               "indent": 0,

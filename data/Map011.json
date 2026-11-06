@@ -5208,7 +5208,7 @@
               "code": 355,
               "indent": 0,
               "parameters": [
-                "GanjukoEngine.startTrainerBattle('Biker Axel', [{ speciesId: 10, level: 14 }, { speciesId: 17, level: 16 }], 800, 'Battle2', 20);"
+                "GanjukoEngine.startTrainerBattle('Biker Axel', [{ speciesId: 10, level: 14 }, { speciesId: 13, level: 16 }], 800, 'Battle2', 20);"
               ]
             },
             {

@@ -1721,8 +1721,13 @@
                 lungeY = p * 25;
             }
 
-            // Face LEFT toward Player Ganjuko!
-            this.scale.x = -1.0;
+            // FR4 QA-D19: battler art natively faces LEFT (toward the
+            // player); the old -1.0 mirror turned every profile battler
+            // AWAY from the player. +1.0 = no mirror, so foes face the
+            // player and the flipped ally faces them. The P2B art-fit
+            // multiplies scale.x by a positive factor and its anchor
+            // correction multiplies by scale.x, so it follows the sign.
+            this.scale.x = 1.0;
             this.scale.y = 1.0 + breath;
             this.x += lungeX;
             this.y += hover + lungeY;
@@ -1819,7 +1824,7 @@
     };
 
     Window_BattleLog.prototype.messageSpeed = function() {
-        return 8; // Snappy, responsive battle action flow
+        return 12; // FR4 QA-D22 pacing: readable battle log pace (was 8, half of MZ stock)
     };
 
     // Position Help Window right above the bottom command area so the entire top battlefield and HP bars are never obstructed!
@@ -1863,7 +1868,7 @@
         if (this._expDispRate === null) this._expDispRate = targetExpRate;
 
         let needsRedraw = false;
-        const drainSpeed = 0.025; // Smooth animated draining
+        const drainSpeed = 0.012; // FR4 QA-D22 pacing: full bar ~1.4s so damage registers (was 0.025)
 
         // Smoothly drain/fill Enemy HP
         if (Math.abs(this._enemyDispRate - targetEnemyRate) > 0.003) {
@@ -1891,7 +1896,7 @@
 
         // Smoothly fill EXP bar
         if (Math.abs(this._expDispRate - targetExpRate) > 0.003) {
-            this._expDispRate += (targetExpRate - this._expDispRate) * 0.1;
+            this._expDispRate += (targetExpRate - this._expDispRate) * 0.03; // FR4 QA-D22: ~1s victory fill (was 0.1)
             needsRedraw = true;
         } else {
             this._expDispRate = targetExpRate;
@@ -1902,6 +1907,14 @@
             enemy ? `${enemy.name()}_${enemy.ganjukoLevel()}_${enemy.hp}_${enemy.mhp}_${enemy.isAlive()}` : "none",
             $gameParty.allMembers().map(m => `${m.hp}`).join(",")
         ].join("|");
+
+        // FR4 QA-D22 nit: while an effectiveness/crit banner is live, keep
+        // redrawing so its duration ticks down in real time and it erases
+        // itself; otherwise the last drawn frame (banner included) freezes
+        // on the HUD bitmap over the victory message.
+        if (typeof $gameTemp !== "undefined" && $gameTemp && $gameTemp._battleBanner && $gameTemp._battleBanner.duration > 0) {
+            needsRedraw = true;
+        }
 
         if (needsRedraw || hash !== this._lastStateHash) {
             this._lastStateHash = hash;
@@ -1953,10 +1966,13 @@
             const actualRate = (enemyHpRate !== undefined) ? enemyHpRate : Math.max(0, Math.min(1, enemy.hp / Math.max(1, enemy.mhp)));
             this.drawHpBar(bmp, ex + 16, ey + 46, ew - 32, 20, actualRate);
 
-            // Numeric HP & remaining Trainer Orbs
+            // HP percentage & remaining Trainer Orbs (v13: this legacy
+            // redrawHud body is superseded by the P2B plate renderer, but
+            // the raw-HP line is scrubbed regardless — HP rule, no
+            // exceptions: bars + percentage only.)
             bmp.fontSize = 16;
             bmp.textColor = "#CBD5E1";
-            bmp.drawText(`HP: ${enemy.hp} / ${enemy.mhp}`, ex + 16, ey + 72, 180, 24, "left");
+            bmp.drawText("HP " + GanjukoEngine.hpPercent(enemy.hp, enemy.mhp) + "%", ex + 16, ey + 72, 180, 24, "left");
 
             if ($gameTemp._isTrainerBattle && $gameTemp._trainerQueue) {
                 const rem = 1 + $gameTemp._trainerQueue.length;
@@ -2028,19 +2044,57 @@
 
     Sprite_GanjukoBattleHud.prototype.drawStatusPill = function(bmp, battler, x, y) {
         if (!battler) return;
+        // v13 (Champions v2 §2.8): correct state->chip mapping — the old
+        // code read PAR from state 6 and SLP from state 5, both wrong.
+        // Letters only, never numbers. Confusion rides as a small OUTLINED
+        // CNF mini-chip beside the major pill (it is a volatile, not a
+        // major status). Stage pips (v1 §2.5) draw under the pill.
         let text = "", color = "";
         if (battler.isStateAffected(11)) { text = "BRN"; color = "#EF4444"; } // Burn
+        else if (battler.isStateAffected(31)) { text = "TOX"; color = "#7C3AED"; } // Badly Poisoned
         else if (battler.isStateAffected(4)) { text = "PSN"; color = "#A855F7"; } // Poison
-        else if (battler.isStateAffected(6)) { text = "PAR"; color = "#F59E0B"; } // Paralyze
-        else if (battler.isStateAffected(5)) { text = "SLP"; color = "#64748B"; } // Sleep
+        else if (battler.isStateAffected(12)) { text = "PAR"; color = "#F59E0B"; } // Paralysis
+        else if (battler.isStateAffected(10)) { text = "SLP"; color = "#64748B"; } // Sleep
         else if (battler.isStateAffected(14)) { text = "FRZ"; color = "#06B6D4"; } // Freeze
 
+        let pillW = 0;
         if (text) {
             bmp.fillRect(x, y, 54, 24, color);
             bmp.fontSize = 13;
             bmp.textColor = "#FFFFFF";
             bmp.drawText(text, x, y, 54, 24, "center");
+            pillW = 54;
         }
+        if (battler.isStateAffected(8)) { // Confusion — outlined mini-chip
+            const cx = x + (pillW ? pillW + 4 : 0);
+            bmp.fillRect(cx, y, 40, 24, "rgba(15, 23, 42, 0.85)");
+            bmp.fillRect(cx, y, 40, 1, "#F59E0B");
+            bmp.fillRect(cx, y + 23, 40, 1, "#F59E0B");
+            bmp.fillRect(cx, y, 1, 24, "#F59E0B");
+            bmp.fillRect(cx + 39, y, 1, 24, "#F59E0B");
+            bmp.fontSize = 11;
+            bmp.textColor = "#F59E0B";
+            bmp.drawText("CNF", cx, y + 2, 40, 20, "center");
+        }
+        // Stage pips: one compact line, e.g. "ATK▲2 AGI▼1" — symbols and
+        // stage counts only (stages are public battle information).
+        try {
+            const st = battler._ganjukoStages;
+            if (st && window.GanjukoEngine && window.GanjukoEngine.S21) {
+                const labels = window.GanjukoEngine.S21.STAGE_LABEL;
+                const parts = [];
+                for (const k of ["atk", "def", "mat", "mdf", "agi", "acc", "eva"]) {
+                    const v = st[k] | 0;
+                    if (v > 0) parts.push(labels[k] + "▲" + v);
+                    else if (v < 0) parts.push(labels[k] + "▼" + (-v));
+                }
+                if (parts.length) {
+                    bmp.fontSize = 11;
+                    bmp.textColor = "#FDE68A";
+                    bmp.drawText(parts.join(" "), x, y + 26, 300, 16, "left");
+                }
+            }
+        } catch (e) {}
     };
 
     Sprite_GanjukoBattleHud.prototype.drawEffectivenessBanner = function(bmp) {
@@ -2061,6 +2115,17 @@
             bmp.drawText(b.text, bx, by + 10, bw, 24, "center");
         }
     };
+
+    // FR4 QA-D22 nit: no banner state may outlive its battle — a
+    // killing-blow crit banner otherwise persists over the victory
+    // message and leaks into the next battle's opening frames.
+    if (typeof BattleManager !== "undefined" && BattleManager && typeof BattleManager.endBattle === "function") {
+        const _fr4_BM_endBattle_banner = BattleManager.endBattle;
+        BattleManager.endBattle = function(result) {
+            try { if (typeof $gameTemp !== "undefined" && $gameTemp) $gameTemp._battleBanner = null; } catch (e) {}
+            return _fr4_BM_endBattle_banner.call(this, result);
+        };
+    }
 
     Sprite_GanjukoBattleHud.prototype.drawCardBox = function(bmp, x, y, w, h, bgColor, borderColor) {
         bmp.fillRect(x, y, w, h, borderColor);
@@ -2252,7 +2317,10 @@
         this.changeTextColor(ColorManager.systemColor());
         this.drawText(`[${typeInfo.name}]`, rect.x + 245, rect.y, 90, "left");
         this.resetTextColor();
-        this.drawText(`HP ${actor.hp}/${actor.mhp}`, rect.x + 340, rect.y, rect.width - 345, "right");
+        // v13: the P2B patch replaces this drawItem at runtime with a
+        // percentage version; the raw-HP original flagged by Champions v1
+        // §7 is scrubbed here too so no code path can render raw HP.
+        this.drawText("HP " + GanjukoEngine.hpPercent(actor.hp, actor.mhp) + "%", rect.x + 340, rect.y, rect.width - 345, "right");
         this.changePaintOpacity(1);
     };
 
@@ -2510,6 +2578,31 @@
             : "Final Form (Does not evolve)";
         this.resetTextColor();
         this.drawText(evoText, 16, 84, 480, "left");
+
+        // Ability line (v13, Section 21): the species' ability slots —
+        // public info (names + the lead slot's one-liner), no numbers.
+        try {
+            const S21 = GanjukoEngine.S21;
+            if (S21 && sp.abilities && S21.ABILITY_LIB) {
+                const slotIds = [].concat(sp.abilities.regular || [],
+                    sp.abilities.special ? [sp.abilities.special] : [],
+                    sp.abilities.signature ? [sp.abilities.signature] : []);
+                if (slotIds.length) {
+                    const lead = S21.ABILITY_LIB[slotIds[0]];
+                    let txt = "Ability: " + (lead ? lead.name : slotIds[0]) +
+                        (lead && lead.desc ? " — " + lead.desc : "");
+                    if (slotIds.length > 1) {
+                        txt += "  ·  also: " + slotIds.slice(1).map(id => (S21.ABILITY_LIB[id] || {}).name || id).join(", ");
+                    }
+                    if (txt.length > 118) txt = txt.slice(0, 117) + "…";
+                    this.contents.fontSize = 19;
+                    this.changeTextColor(ColorManager.systemColor());
+                    this.drawText(txt, 16, 104, this.innerWidth - 32, "left");
+                    this.resetTextColor();
+                    try { if (typeof this.resetFontSettings === "function") this.resetFontSettings(); } catch (e) {}
+                }
+            }
+        } catch (e) {}
 
         // Base Stats
         const bs = sp.baseStats;
@@ -3945,18 +4038,29 @@
     // ascending strength order inside each tier, so "strongest eligible" is
     // the last eligible entry. Tier level gates: early 1, mid 10, late 22,
     // statusOrHeal 6.
+    // v13 pool repair (Champions v2 §1.5 + v1 §5.3): signatures (58-72) are
+    // OUT of every pool; hard POW cap 100; tier gates re-read on v2 numbers
+    // (early <= 60 @ Lv1, mid <= 75 @ Lv10, late <= 100 @ Lv26); the v13
+    // stage kit joins statusOrHeal (81/73/74/79/80/82) and the damaging
+    // tiers (75/76 mid, 78 mid, 77 late — its renormed POW 85 exceeds the
+    // mid ceiling); Will-o-Wisp moves to Umbra's statusOrHeal now that it
+    // is a pure status move; Static Web (83) and Slumber Spores (84) take
+    // the Volt/Nature statusOrHeal slots. One named exception: Psybeam (47,
+    // POW 65) stays in Astral's early tier — it is the type's weakest
+    // damaging move and the renorm lifted it one step over the early gate;
+    // the alternative is Astral with no early pool at all.
     const GANJUKO_MOVE_POOLS = {
-        1: { early: [1, 3, 4, 5], mid: [51], late: [53], statusOrHeal: [2, 52] },
-        2: { early: [6, 7], mid: [8], late: [9, 27, 28, 54], statusOrHeal: [55] },
-        3: { early: [10, 38], mid: [58, 11, 12, 40], late: [13, 29, 30, 59, 67, 60, 68], statusOrHeal: [] },
-        4: { early: [14], mid: [15], late: [17, 32, 61, 62], statusOrHeal: [16, 31] },
-        5: { early: [18], mid: [19, 35], late: [20, 33, 34], statusOrHeal: [] },
-        6: { early: [24], mid: [25], late: [26, 37, 63, 36, 56], statusOrHeal: [57] },
-        7: { early: [21], mid: [22], late: [23, 64], statusOrHeal: [] },
-        8: { early: [41, 45], mid: [42, 43], late: [44, 46, 65, 66, 71, 72], statusOrHeal: [] },
-        9: { early: [47], mid: [48], late: [49, 50, 69, 70], statusOrHeal: [] }
+        1: { early: [1, 3, 4, 5], mid: [51], late: [53], statusOrHeal: [2, 52, 81] },
+        2: { early: [6, 7], mid: [8], late: [9, 27, 28], statusOrHeal: [55] },
+        3: { early: [10, 38], mid: [40, 11, 12], late: [13, 30], statusOrHeal: [] },
+        4: { early: [14], mid: [15, 78], late: [32], statusOrHeal: [16, 31, 84] },
+        5: { early: [18], mid: [19, 35], late: [33], statusOrHeal: [83] },
+        6: { early: [24], mid: [25], late: [63, 77, 26, 37, 36], statusOrHeal: [57, 79, 80] },
+        7: { early: [21], mid: [22], late: [23], statusOrHeal: [74] },
+        8: { early: [41], mid: [43], late: [42, 46, 44], statusOrHeal: [45, 82] },
+        9: { early: [], mid: [47, 76, 48], late: [49], statusOrHeal: [73] }
     };
-    const GANJUKO_POOL_TIER_LEVEL = { early: 1, mid: 10, late: 22, statusOrHeal: 6 };
+    const GANJUKO_POOL_TIER_LEVEL = { early: 1, mid: 10, late: 26, statusOrHeal: 6 };
     // Fixed coverage picks (skill id) per attacker type, unlocked at Lv 8.
     const GANJUKO_COVERAGE = { 1: 41, 2: 24, 3: 19, 4: 7, 5: 22, 6: 18, 7: 42, 8: 47, 9: 43 };
     GanjukoEngine.GANJUKO_MOVE_POOLS = GANJUKO_MOVE_POOLS;
@@ -5742,7 +5846,24 @@
     // (hp+atk+def+mat) * level^1.6 * 0.083, which tracks the exp curve's
     // superlinear gaps at ~3-4 equal-level wins per level-up all game
     // (calibration table in work/sim/simulate3.mjs EXP report).
+    //
+    // QA-D20 / FR4 Enemy Doctrine (2026-11-05): the flat 0.083 coefficient
+    // still starved the OPENING, where the Lv5->6 curve gap (486 EXP) dwarfs
+    // a ~50-85 EXP low-level win, so the player could not level on Route 1
+    // at all (fix4/RECON.md Workstream B). The yield coefficient is now
+    // tapered by FOE level via expCoefForLevel below: 0.16 for foe Lv <= 6,
+    // 0.125 for Lv 7-10, and the original 0.083 above Lv 10 (STAT_MODEL
+    // .expCoef keeps the >10 value). A Lv4 foe now pays ~139 EXP and Lv5->6
+    // takes ~4 Route 1 wins; mid/late-game pacing is unchanged.
     GanjukoEngine.STAT_MODEL = { intercept: 0.30, perLevel: 0.034, expCoef: 0.083, expPow: 1.6, stadiumBand: 620 };
+
+    // FR4 D20 EXP taper: coefficient by foe level (see note above).
+    GanjukoEngine.expCoefForLevel = function(lv) {
+        const L = Math.max(1, Math.floor(lv) || 1);
+        if (L <= 6) return 0.16;
+        if (L <= 10) return 0.125;
+        return GanjukoEngine.STAT_MODEL.expCoef; // 0.083
+    };
 
     GanjukoEngine.unifiedParam = function(bs, paramId, level) {
         if (!bs) return 10;
@@ -5801,7 +5922,8 @@
                     const bs = sp.baseStats;
                     const bs4 = (bs.hp || 0) + (bs.atk || 0) + (bs.def || 0) + (bs.mat || 0);
                     const lv = (typeof this.ganjukoLevel === "function") ? this.ganjukoLevel() : 1;
-                    return Math.max(1, Math.round(bs4 * Math.pow(Math.max(1, lv), GanjukoEngine.STAT_MODEL.expPow) * GanjukoEngine.STAT_MODEL.expCoef));
+                    // FR4 D20: tapered coefficient by foe level (expCoefForLevel).
+                    return Math.max(1, Math.round(bs4 * Math.pow(Math.max(1, lv), GanjukoEngine.STAT_MODEL.expPow) * GanjukoEngine.expCoefForLevel(lv)));
                 }
             } catch (e) {}
             return _p2a_Game_Enemy_exp.call(this);
@@ -6747,7 +6869,10 @@
     // Max evolution stage admitted to an area's REGULAR tiers (mythic exempt, see header).
     const AREA_MAX_STAGE = { 3: 1, 7: 1, 8: 2, 11: 1, 15: 2, 17: 2, 19: 2, 21: 1, 23: 2, 25: 3 };
     // Per-area encounterStep multipliers (rate): Route 1 gentlest in the game.
-    const AREA_STEP_MULT = { 3: 3.5, 7: 2.3, 8: 2.5, 11: 2.5, 15: 1.0, 17: 1.0, 19: 1.0, 21: 1.0, 23: 1.0, 25: 0.87 };
+    // FR4 QA-D22 pacing: Route 1 (Map003, base step 12) 3.5 -> 6.0 = counter 72
+    // (~36 bush steps between battles); Route 2 (Map007, base step 14)
+    // 2.3 -> 4.6 = counter ~64 (~32 bush steps). Cadence only, not battle math.
+    const AREA_STEP_MULT = { 3: 6.0, 7: 4.6, 8: 2.5, 11: 2.5, 15: 1.0, 17: 1.0, 19: 1.0, 21: 1.0, 23: 1.0, 25: 0.87 };
     // Route 7 night variants: within-tier weight overrides by speciesPos.
     const NIGHT_WEIGHT_SHIFTS = { 21: { common: { 22: 40, 24: 35 }, rare: { 106: 50 } } };
     const RADIANT = { speciesPos: 490, probability: 0.0001, homeMapId: 23, minBadges: 4, level: 40 };
@@ -7584,23 +7709,61 @@
         // 12 Paralysis, 2 Guard...). MZ effect code 21 = Add State; scope
         // decides whether that is an infliction (enemy scopes 1-6) or a
         // self/ally grant. Code 31/32 = buff/debuff (dataId = param id).
-        const stateNames = { 2: "Guard", 4: "Poison", 5: "Blind", 6: "Silence", 7: "Rage", 8: "Confusion", 9: "Charm", 10: "Sleep", 11: "Burn", 12: "Paralysis", 13: "Stun" };
+        const stateNames = { 2: "Guard", 4: "Poison", 5: "Blind", 6: "Silence", 7: "Rage", 8: "Confusion", 9: "Charm", 10: "Sleep", 11: "Burn", 12: "Paralysis", 13: "Stun", 14: "Freeze", 31: "Badly Poisoned" };
         const paramNames = { 2: "ATK", 3: "DEF", 4: "MAT", 5: "MDF", 6: "AGI", 7: "LUK" };
-        const raises = [], lowers = [];
+        const raiseCount = {}, lowerCount = {};
         for (const e of skill.effects || []) {
             if (e.code === 21 && stateNames[e.dataId]) {
                 if (skill.scope >= 1 && skill.scope <= 6) {
                     const pct = Math.round((e.value1 || 0) * 100);
-                    if (pct > 0) bits.push("May inflict " + stateNames[e.dataId] + " (" + pct + "%)");
+                    if (pct >= 100) bits.push("Inflicts " + stateNames[e.dataId]);
+                    else if (pct > 0) bits.push("May inflict " + stateNames[e.dataId] + " (" + pct + "%)");
                 } else {
                     bits.push("Grants " + stateNames[e.dataId]);
                 }
             }
-            if (e.code === 31 && paramNames[e.dataId]) raises.push(paramNames[e.dataId]);
-            if (e.code === 32 && paramNames[e.dataId]) lowers.push(paramNames[e.dataId]);
+            // v13: under the stage system ONE code-31/32 entry = ONE stage,
+            // so the counts shown are the stage counts (v1 §2.5 wording).
+            if (e.code === 31 && paramNames[e.dataId]) raiseCount[paramNames[e.dataId]] = (raiseCount[paramNames[e.dataId]] || 0) + 1;
+            if (e.code === 32 && paramNames[e.dataId]) lowerCount[paramNames[e.dataId]] = (lowerCount[paramNames[e.dataId]] || 0) + 1;
         }
-        if (raises.length) bits.push("Raises own " + raises.join(" & "));
-        if (lowers.length) bits.push("Lowers foe " + lowers.join(" & "));
+        const fmtStages = (counts, sign) => Object.keys(counts).map(k => k + " " + sign + counts[k]).join(" · ");
+        if (Object.keys(raiseCount).length) bits.push("Raises own " + fmtStages(raiseCount, "+"));
+        if (Object.keys(lowerCount).length) bits.push("Lowers foe " + fmtStages(lowerCount, "-"));
+        // v13 Champions tables (Section 21): the move-info must read the
+        // same SELF_STAGE / FOE_STAGE / recoil / recharge / high-crit /
+        // flinch tables the battle engine applies — it can never again
+        // describe Leaf Storm without its self-drop.
+        try {
+            const S21 = window.GanjukoEngine && window.GanjukoEngine.S21;
+            if (S21) {
+                const lbl = { atk: "ATK", def: "DEF", mat: "MAT", mdf: "MDF", agi: "AGI", acc: "ACC", eva: "EVA" };
+                const sgn = (d) => (d > 0 ? "+" + d : "" + d);
+                if (S21.SELF_STAGE && S21.SELF_STAGE[skill.id]) {
+                    bits.push("Self: " + S21.SELF_STAGE[skill.id].map(([k, d]) => lbl[k] + " " + sgn(d)).join(" · "));
+                }
+                if (S21.FOE_STAGE && S21.FOE_STAGE[skill.id]) {
+                    for (const [k, d, ch] of S21.FOE_STAGE[skill.id]) {
+                        bits.push("Lowers foe " + lbl[k] + " " + sgn(d) + (ch < 1 ? " (" + Math.round(ch * 100) + "%)" : ""));
+                    }
+                }
+                if (S21.FLINCH_RIDERS && S21.FLINCH_RIDERS[skill.id]) {
+                    bits.push("May flinch (" + Math.round(S21.FLINCH_RIDERS[skill.id] * 100) + "%)");
+                }
+                if (S21.RECOIL && S21.RECOIL[skill.id]) {
+                    bits.push("Recoil " + Math.round(S21.RECOIL[skill.id] * 100) + "% of damage");
+                }
+                if (S21.RECHARGE_SKILLS && S21.RECHARGE_SKILLS[skill.id]) {
+                    bits.push("Must recharge next turn");
+                }
+                if (S21.HIGH_CRIT && S21.HIGH_CRIT[skill.id]) {
+                    bits.push("High critical rate");
+                }
+                if (S21.TRAP_SKILL === skill.id) {
+                    bits.push("Traps the foe");
+                }
+            }
+        } catch (e) {}
         return bits.join(" · ");
     }
     const FR3_TYPE_NAMES = {
@@ -9411,6 +9574,22 @@
                 win.contents.fillRect(colX + 48, statsY + 6, Math.round((colW - 100) * frac), 10, typeInfo.color || "#38BDF8");
             } catch (e) {}
         });
+        // Ability line (v13, Section 21): the individual's own rolled
+        // ability — public info (name + one-liner), never a number.
+        try {
+            if (GE.S21 && typeof GE.S21.abilityLineFor === "function") {
+                const abLine = GE.S21.abilityLineFor(actor);
+                if (abLine) {
+                    setSize(15);
+                    setColor(sysColor);
+                    draw("Ability:", PX, statsY + 30, 90, "left");
+                    win.resetTextColor();
+                    let txt = abLine.name + " — " + abLine.desc;
+                    if (txt.length > 118) txt = txt.slice(0, 117) + "…";
+                    draw(txt, PX + 90, statsY + 30, PW - 90, "left");
+                }
+            }
+        } catch (e) {}
         setSize(16);
         setColor(sysColor);
         draw("← / → : Next partner      B : Back", 16, H - 26, 500, "left");
@@ -11326,7 +11505,8 @@
             if (t < 0) { if (d !== -1) { this._s19Disp[i] = -1; moving = true; } continue; }
             if (d < 0) { this._s19Disp[i] = t; moving = true; continue; }
             if (Math.abs(d - t) > 0.003) {
-                this._s19Disp[i] = d > t ? Math.max(t, d - 0.025) : Math.min(t, d + 0.025);
+                // FR4 QA-D22: same drain constant as the singles HUD (was 0.025).
+                this._s19Disp[i] = d > t ? Math.max(t, d - 0.012) : Math.min(t, d + 0.012);
                 moving = true;
             } else if (d !== t) this._s19Disp[i] = t;
         }
@@ -12251,3 +12431,3357 @@
     } catch (e) {}
 })();
 // === END Section 19 — Arena (offline) ===
+
+// ============================================================================
+// SECTION 21 — CHAMPIONS BATTLE STANDARD (OTA v13, 2026-11-02)
+// ============================================================================
+// Implements work/CHAMPIONS-BATTLE-STANDARD.md (v1) as amended by
+// work/CHAMPIONS-BATTLE-STANDARD-V2.md (v2 WINS on every conflict):
+//   Part A (this block): stat stages ±6 (v1 §2), the SELF_STAGE / FOE_STAGE
+//     tables, the complete status system (v2 §2: one-major rule, type +
+//     ability immunity gate, ordered action gate with the Champions sleep /
+//     freeze clocks and 12.5% full-paralysis, burn physical cut in the
+//     damage chain, toxic escalation + trapping chips at turn end, recoil
+//     table, Hydro Cannon recharge, Fire-thaw, crit rate 1/24 with stage
+//     table + stage-ignore, drain fraction corrected to 50%).
+//   Part B (next block): the 316-entry ability library framework
+//     (work/abilities/) — entry / end-of-turn / damage / on-hit / pre-move /
+//     field (Sky + auras) / copy-swap-suppression registry hooks.
+//
+// Hard rules honored throughout: abilities never read or write genetics
+// (Section 18's store is never touched here); every random draw in this
+// section flows through GanjukoEngine.battleRandom, the single seedable
+// seam Section 20's relay will drive; HP is displayed as bars + percentage
+// only — nothing in this section ever renders a raw HP number.
+(() => {
+    "use strict";
+    const GE = window.GanjukoEngine;
+    if (!GE) return;
+    const S21 = {};
+    GE.S21 = S21;
+    S21._status = { loaded: true };
+
+    // ------------------------------------------------------------------ RNG
+    let _rngFn = null;
+    S21.setBattleRandom = function (fn) { _rngFn = (typeof fn === "function") ? fn : null; };
+    S21.battleRandom = function () { return _rngFn ? _rngFn() : Math.random(); };
+    GE.battleRandom = S21.battleRandom;
+    const br = () => S21.battleRandom();
+    const brChance = (p) => br() < p;
+
+    // -------------------------------------------------------------- helpers
+    function isGanjukoBattler(b) {
+        return !!b && typeof b.ganjukoSpecies === "function" && typeof b.ganjukoSpeciesId === "function";
+    }
+    S21.isGanjukoBattler = isGanjukoBattler;
+    function inBattle() {
+        try {
+            return typeof $gameParty !== "undefined" && $gameParty &&
+                typeof $gameParty.inBattle === "function" && $gameParty.inBattle();
+        } catch (e) { return false; }
+    }
+    S21.inBattle = inBattle;
+    function sideOf(b) {
+        try { if (typeof b.isActor === "function" && b.isActor()) return "actor"; } catch (e) {}
+        try { if (typeof b.isEnemy === "function" && b.isEnemy()) return "enemy"; } catch (e) {}
+        try { if (typeof Game_Actor !== "undefined" && b instanceof Game_Actor) return "actor"; } catch (e) {}
+        return "enemy";
+    }
+    S21.sideOf = sideOf;
+    function isOpponent(a, b) { return !!a && !!b && sideOf(a) !== sideOf(b); }
+    function standingActors() {
+        try {
+            if (typeof $gameParty === "undefined" || !$gameParty) return [];
+            if (typeof $gameParty.battleMembers === "function") return $gameParty.battleMembers().slice();
+            if (typeof $gameParty.allMembers === "function") return $gameParty.allMembers().slice();
+        } catch (e) {}
+        return [];
+    }
+    function standingEnemies() {
+        try {
+            if (typeof $gameTroop !== "undefined" && $gameTroop && typeof $gameTroop.members === "function") {
+                return $gameTroop.members().slice();
+            }
+        } catch (e) {}
+        return [];
+    }
+    S21.standingOf = function (b) {
+        return sideOf(b) === "actor" ? standingActors() : standingEnemies();
+    };
+    S21.allStanding = function () { return standingActors().concat(standingEnemies()); };
+    S21.foesOf = function (b) {
+        return (sideOf(b) === "actor" ? standingEnemies() : standingActors())
+            .filter(x => x && x !== b && (typeof x.isAlive !== "function" || x.isAlive()));
+    };
+    S21.alliesOf = function (b) {
+        return S21.standingOf(b).filter(x => x && x !== b && (typeof x.isAlive !== "function" || x.isAlive()));
+    };
+    S21.logLines = [];
+    S21.log = function (text) {
+        S21.logLines.push(text);
+        try {
+            if (typeof BattleManager !== "undefined" && BattleManager && BattleManager._logWindow &&
+                typeof BattleManager._logWindow.push === "function") {
+                BattleManager._logWindow.push("addText", text);
+            }
+        } catch (e) {}
+    };
+    function battlerName(b) {
+        try { return b.name(); } catch (e) { return "The battler"; }
+    }
+    S21.battlerName = battlerName;
+    function typesOf(b) {
+        try {
+            const sp = b.ganjukoSpecies();
+            if (sp) return [sp.type1 || sp.type || 0, sp.type2 || 0].filter(t => t > 0);
+        } catch (e) {}
+        return [];
+    }
+    S21.typesOf = typesOf;
+    // Effective types: Part B may layer type-change effects (Prismflesh,
+    // Skyward Guise, Fieldmirror, type-conversion touches read the MOVE's
+    // type, not the battler's). Part A ships the species-truth version;
+    // Part B wraps this.
+    S21.effectiveTypes = function (b) { return typesOf(b); };
+
+    // ------------------------------------------------------- stage system
+    // v1 §2.1: battle-only store on battler._ganjukoStages. Volatile keys
+    // (v2 §2.6 hook 1) live in the same object: statusClock (sleep/freeze
+    // attempt counter — PERSISTS across switches), toxicCounter (resets on
+    // switch-out), confusionCounter, flinch, trapTurns, recharge.
+    function freshStore() {
+        return {
+            atk: 0, def: 0, mat: 0, mdf: 0, agi: 0, acc: 0, eva: 0,
+            statusClock: 0, toxicCounter: 0, confusionCounter: 0,
+            flinch: false, trapTurns: 0, trapSource: null, recharge: false,
+            entered: false, out: true, lastAttacker: null, lastSkillId: 0,
+            lastTarget: null, misc: {}
+        };
+    }
+    S21.freshStore = freshStore;
+    S21.store = function (b) {
+        if (!b._ganjukoStages) b._ganjukoStages = freshStore();
+        return b._ganjukoStages;
+    };
+    S21.STAGE_STATS = ["atk", "def", "mat", "mdf", "agi", "acc", "eva"];
+    S21.PARAM_OF_STAGE = { atk: 2, def: 3, mat: 4, mdf: 5, agi: 6 };
+    S21.STAGE_OF_PARAM = { 2: "atk", 3: "def", 4: "mat", 5: "mdf", 6: "agi" };
+    S21.STAGE_LABEL = { atk: "ATK", def: "DEF", mat: "MAT", mdf: "MDF", agi: "AGI", acc: "ACC", eva: "EVA" };
+    // v1 §2.1 multiplier tables: stat scale (2+s)/2, acc/eva scale (3+s)/3.
+    S21.stageMult = function (statKey, s) {
+        s = Math.max(-6, Math.min(6, s | 0));
+        if (s === 0) return 1;
+        if (statKey === "acc" || statKey === "eva") return s > 0 ? (3 + s) / 3 : 3 / (3 - s);
+        return s > 0 ? (2 + s) / 2 : 2 / (2 - s);
+    };
+    function stageWording(delta) {
+        if (delta >= 3) return " rose drastically!";
+        if (delta === 2) return " rose sharply!";
+        if (delta === 1) return " rose!";
+        if (delta === -1) return " fell!";
+        if (delta === -2) return " harshly fell!";
+        return " severely fell!";
+    }
+    // The one stage-changing door. Handles clamping, Mirror Temper /
+    // Open Book (Part B ability ids read here as data), the foe-lowering
+    // protection family, Defiance / Proud Retort, Mirroring Ambition, and
+    // the Pokémon log wording. Returns the delta actually applied.
+    S21.applyStageChange = function (target, statKey, delta, source, opts) {
+        opts = opts || {};
+        if (!target || !delta || typeof target.isAlive === "function" && !target.isAlive()) return 0;
+        const st = S21.store(target);
+        const tgtAbility = S21.abilityActive ? S21.abilityActive(target) : null;
+        // Foe-caused lowerings: protection family (v1 §4 status-hook rules).
+        if (delta < 0 && source && isOpponent(source, target) && !opts.ignoreProtect) {
+            const fullBlock = ["brightbody", "pale-shroud", "brightforge-body", "temporal-sovereignty"];
+            const statBlock = (statKey === "atk" && tgtAbility === "shearbrand") ||
+                (statKey === "def" && tgtAbility === "proudcrest");
+            const entryAtkBlock = opts.entryEffect && statKey === "atk" &&
+                ["blithe-mind", "own-cadence", "stillpoint", "bold-spirit"].includes(tgtAbility);
+            const accBlock = statKey === "acc" &&
+                ["lantern-gaze", "trueaim-regard", "inward-eye"].includes(tgtAbility);
+            if (accBlock) {
+                S21.log(battlerName(target) + "'s ACC was not lowered!");
+                return 0;
+            }
+            if (tgtAbility === "watchdogs-pride" && opts.entryEffect && statKey === "atk") {
+                S21.log(battlerName(target) + "'s Watchdog's Pride turned the intimidation back!");
+                return S21.applyStageChange(target, statKey, 1, null, { ignoreProtect: true, depth: (opts.depth || 0) + 1 });
+            }
+            if (fullBlock.includes(tgtAbility) || statBlock || entryAtkBlock) {
+                if (tgtAbility === "mirrorplate" && !opts.reflected) {
+                    S21.log(battlerName(target) + "'s Mirrorplate reflected the drop!");
+                    return S21.applyStageChange(source, statKey, delta, null, { ignoreProtect: true, reflected: true, depth: (opts.depth || 0) + 1 });
+                }
+                S21.log(battlerName(target) + "'s " + S21.STAGE_LABEL[statKey] + " was not lowered!");
+                return 0;
+            }
+            if (tgtAbility === "mirrorplate" && !opts.reflected) {
+                S21.log(battlerName(target) + "'s Mirrorplate reflected the drop!");
+                return S21.applyStageChange(source, statKey, delta, null, { ignoreProtect: true, reflected: true, depth: (opts.depth || 0) + 1 });
+            }
+        }
+        if (tgtAbility === "mirror-temper" && !opts.noReverse) delta = -delta;
+        if (tgtAbility === "open-book" && !opts.noDouble) delta = delta * 2;
+        const before = st[statKey] | 0;
+        let after = Math.max(-6, Math.min(6, before + delta));
+        // Raptor's Regard: its ACC stages never fall below 0.
+        if (statKey === "acc" && tgtAbility === "raptors-regard" && after < 0) after = 0;
+        const applied = after - before;
+        if (applied === 0) {
+            if (delta > 0) S21.log(battlerName(target) + "'s " + S21.STAGE_LABEL[statKey] + " won't go any higher!");
+            else if (delta < 0) S21.log(battlerName(target) + "'s " + S21.STAGE_LABEL[statKey] + " won't go any lower!");
+            return 0;
+        }
+        st[statKey] = after;
+        S21.log(battlerName(target) + "'s " + S21.STAGE_LABEL[statKey] + stageWording(applied));
+        // Defiance / Proud Retort: a foe's lowering raises ATK / MAT +2.
+        if (applied < 0 && source && isOpponent(source, target) && !opts.noRetort) {
+            if (tgtAbility === "defiance") S21.applyStageChange(target, "atk", 2, null, { ignoreProtect: true, noRetort: true, depth: (opts.depth || 0) + 1 });
+            if (tgtAbility === "proud-retort") S21.applyStageChange(target, "mat", 2, null, { ignoreProtect: true, noRetort: true, depth: (opts.depth || 0) + 1 });
+            // Startle Reflex also triggers when its ATK is lowered on entry.
+            if (opts.entryEffect && tgtAbility === "startle-reflex") S21.applyStageChange(target, "agi", 1, null, { ignoreProtect: true, noRetort: true });
+        }
+        // Mirroring Ambition: foes of the raiser copy the raise.
+        if (applied > 0 && !opts.noMirror && (opts.depth || 0) < 2) {
+            for (const other of S21.foesOf(target)) {
+                if (S21.abilityActive && S21.abilityActive(other) === "mirroring-ambition") {
+                    S21.applyStageChange(other, statKey, applied, null, { ignoreProtect: true, noMirror: true, depth: (opts.depth || 0) + 1 });
+                }
+            }
+        }
+        return applied;
+    };
+    S21.resetStages = function (b, silent) {
+        const st = S21.store(b);
+        for (const k of S21.STAGE_STATS) st[k] = 0;
+        if (!silent) { /* stage resets are silent in Pokémon */ }
+    };
+    // Switch-out processing (v1 §2.4 + v2 §2.6 hook 1): stages and volatiles
+    // clear; the sleep/freeze statusClock PERSISTS; the toxic counter
+    // restarts (next turn-end back in costs 1/16 again).
+    S21.processSwitchOut = function (b) {
+        const st = S21.store(b);
+        S21.resetStages(b, true);
+        st.confusionCounter = 0;
+        st.flinch = false;
+        st.trapTurns = 0;
+        st.trapSource = null;
+        st.recharge = false;
+        st.toxicCounter = 1;
+        try { if (typeof b.isStateAffected === "function" && b.isStateAffected(8)) b.removeState(8); } catch (e) {}
+        st.out = true;
+        st.entered = false;
+        if (typeof S21.onSwitchOut === "function") { try { S21.onSwitchOut(b); } catch (e) {} }
+    };
+    S21.processEntry = function (b) {
+        const st = S21.store(b);
+        if (st.entered) return;
+        st.entered = true;
+        st.out = false;
+        if (typeof S21.onEntry === "function") { try { S21.onEntry(b); } catch (e) {} }
+    };
+    // Diff the party's standing set and process transitions. Called at turn
+    // boundaries and after every switch seam so faint-replacements (which
+    // swap inside BattleManager.checkBattleEnd) are caught too.
+    S21.processFieldTransitions = function () {
+        if (!inBattle()) return;
+        try {
+            if (typeof $gameParty === "undefined" || !$gameParty || typeof $gameParty.allMembers !== "function") return;
+            const standing = standingActors();
+            for (const m of $gameParty.allMembers()) {
+                if (!m || !m._ganjukoStages) continue;
+                const isStanding = standing.includes(m);
+                const st = m._ganjukoStages;
+                if (isStanding && st.out) S21.processEntry(m);
+                else if (!isStanding && !st.out && st.entered) S21.processSwitchOut(m);
+            }
+        } catch (e) {}
+    };
+
+    // ------------------------------------------------------- ability seam
+    // Part A defines the resolver contract; Part B fills the registry.
+    // abilityOf: the battler's own ability (rolled once per individual from
+    // its species' slots, stored on the battler — never derived from
+    // genetics). abilityActive: abilityOf minus suppression (Null Air) and
+    // copy/swap overrides — every effect check reads abilityActive.
+    S21.abilitySlotsFor = function (b) {
+        try {
+            const sp = b.ganjukoSpecies();
+            if (sp && sp.abilities) {
+                const out = [];
+                for (const id of sp.abilities.regular || []) out.push(id);
+                if (sp.abilities.special) out.push(sp.abilities.special);
+                if (sp.abilities.signature) out.push(sp.abilities.signature);
+                return out;
+            }
+        } catch (e) {}
+        return [];
+    };
+    S21.abilityOf = function (b) {
+        if (!b) return null;
+        if (b._s21AbilityOverride) return b._s21AbilityOverride;
+        if (b._s21AbilityId) {
+            // A stored roll is only valid for the species it was rolled
+            // on. Battler objects get re-specced (wild-actor reuse,
+            // trainer-queue replacement, evolution): if the stored id
+            // is not among the CURRENT species' slots it is a previous
+            // species' roll leaking through — fall through and re-roll.
+            // (Copy/swap never writes _s21AbilityId; it uses the
+            // override, which is checked first and is unaffected.)
+            const cur = S21.abilitySlotsFor(b);
+            if (!cur.length || cur.indexOf(b._s21AbilityId) >= 0) return b._s21AbilityId;
+        }
+        const slots = S21.abilitySlotsFor(b);
+        if (!slots.length) return null;
+        const pick = slots[Math.min(slots.length - 1, Math.floor(br() * slots.length))];
+        b._s21AbilityId = pick;
+        return pick;
+    };
+    S21.setAbility = function (b, id) { if (b) b._s21AbilityId = id; };
+    S21.abilityActive = function (b) {
+        // Part B replaces this with the suppression-aware version.
+        return S21.abilityOf(b);
+    };
+    // Extension points Part B implements (safe defaults here):
+    S21.riderChanceMult = function (subject, item, stateId) { return 1; };
+    S21.riderBlocked = function (subject, target, item) { return false; };
+    S21.modifyDamageDealt = function (subject, target, item, value, critical) { return value; };
+    S21.modifyDamageTaken = function (target, subject, item, value, critical) { return value; };
+    S21.endOfTurnEffects = function (b) {};
+    S21.tickMisc = function (b) {};
+    S21.fieldTick = function () {};
+    S21.extraActionGate = function (subject, action) { return false; };
+    S21.trapBlockedByAbility = function (b) { return false; };
+
+    // ------------------------------------------------------- status core
+    S21.MAJOR_STATES = [4, 10, 11, 12, 14, 31];
+    S21.STATE_NAMES = { 4: "poisoned", 8: "confused", 10: "asleep", 11: "burned", 12: "paralyzed", 14: "frozen solid", 31: "badly poisoned" };
+    S21.POWDER_SKILLS = { 78: true, 84: true };
+    S21.HIGH_CRIT = { 15: true, 37: true, 43: true };
+    S21.RECOIL = { 17: 1 / 3, 20: 1 / 3, 50: 1 / 4 };
+    S21.FLINCH_RIDERS = { 8: 0.10, 22: 0.30, 42: 0.20 };
+    S21.RECHARGE_SKILLS = { 29: true };
+    S21.TRAP_SKILL = 63;
+    // v1 §2.4 SELF_STAGE: self stage changes on damaging moves, applied in
+    // the applyItemUserEffect wrap only when the action connected.
+    S21.SELF_STAGE = {
+        7: [["agi", 1]],
+        60: [["mat", -2]], 61: [["mat", -2]], 68: [["mat", -2]],
+        70: [["mat", -2]], 71: [["atk", -1], ["def", -1]], 72: [["mat", -2]]
+    };
+    // Foe stage riders on damaging moves. MZ data cannot carry a debuff
+    // chance (stock itemEffectAddDebuff has no chance roll), so these live
+    // here next to SELF_STAGE; move-info and the AI scorer read both tables.
+    // [statKey, delta, chance]
+    S21.FOE_STAGE = {
+        25: [["acc", -1, 0.30]],
+        62: [["mdf", -1, 1.0]],
+        75: [["atk", -1, 1.0]],
+        76: [["mat", -1, 1.0]],
+        77: [["def", -1, 0.50]],
+        78: [["mdf", -1, 0.50]],
+        79: [["acc", -1, 1.0]]
+    };
+    S21.majorStatusOf = function (b) {
+        if (!b) return 0;
+        if (S21.abilityActive && S21.abilityActive(b) === "eternal-slumber") return 10;
+        if (typeof b.isStateAffected !== "function") return 0;
+        for (const id of S21.MAJOR_STATES) if (b.isStateAffected(id)) return id;
+        return 0;
+    };
+    // Type immunities (v2 §2.4) + the ability gate Part B extends.
+    S21.typeImmuneTo = function (user, target, stateId, skill) {
+        const types = S21.effectiveTypes(target);
+        if (stateId === 11 && types.includes(2)) return true;                    // Fire <- burn
+        if (stateId === 12) {
+            if (types.includes(5)) return true;                                  // Volt <- paralysis
+            if (types.includes(6) && skill && skill.damage && skill.damage.elementId === 5) return true; // Earth <- Volt-move paralysis
+        }
+        if ((stateId === 4 || stateId === 31) && types.includes(6)) {
+            if (!(user && S21.abilityActive && S21.abilityActive(user) === "rustvenom")) return true; // Earth <- poison (Steel seat)
+        }
+        if (skill && S21.POWDER_SKILLS[skill.id] && types.includes(4)) return true; // Nature <- powder moves
+        return false;
+    };
+    S21.abilityImmuneTo = function (target, stateId, skill, user) { return false; }; // Part B extends
+    S21.fieldImmuneTo = function (target, stateId) { return false; };                 // Part B extends (auras / Sky)
+    S21.canApplyStatus = function (user, target, stateId, skill) {
+        if (!target || (typeof target.isAlive === "function" && !target.isAlive())) return { ok: false, reason: "dead" };
+        if (S21.MAJOR_STATES.includes(stateId)) {
+            const cur = S21.majorStatusOf(target);
+            if (cur) return { ok: false, reason: cur === stateId ? "already" : "blocked" };
+        }
+        if (S21.typeImmuneTo(user, target, stateId, skill)) return { ok: false, reason: "immune" };
+        if (S21.abilityImmuneTo(target, stateId, skill, user)) return { ok: false, reason: "immune" };
+        if (S21.fieldImmuneTo(target, stateId)) return { ok: false, reason: "immune" };
+        return { ok: true };
+    };
+    S21.onStatusApplied = []; // Part B subscribes (Shared Burden, Puppeteer's Venom)
+    S21.applyStatus = function (user, target, stateId, skill) {
+        const gate = S21.canApplyStatus(user, target, stateId, skill);
+        if (!gate.ok) return gate;
+        target.addState(stateId);
+        if (typeof target.isStateAffected === "function" && !target.isStateAffected(stateId)) {
+            return { ok: false, reason: "resisted" };
+        }
+        const st = S21.store(target);
+        if (stateId === 10 || stateId === 14) st.statusClock = 0;
+        if (stateId === 31) st.toxicCounter = 1;
+        if (stateId === 8) st.confusionCounter = 2 + Math.floor(br() * 4); // 2-5, Gen IX
+        for (const fn of S21.onStatusApplied) { try { fn(user, target, stateId, skill); } catch (e) {} }
+        return { ok: true };
+    };
+    // Confusion self-hit (v2 §2.3, Gen IX): typeless POW-40 physical, own
+    // stage-adjusted ATK vs own DEF in the engine's formula shape, no crit,
+    // no STAB, no chart, cannot miss. The sim uses this exact formula.
+    S21.confusionSelfHit = function (b) {
+        const atk = (typeof b.atk === "number") ? b.atk : 100;
+        const def = (typeof b.def === "number") ? b.def : 100;
+        const roll = 0.85 + br() * 0.15;
+        return Math.max(1, Math.floor((atk * 0.40 - def * 0.16) * roll));
+    };
+
+    // ------------------------------------------------------------- wraps
+    function wrapProto(obj, name, fn) {
+        if (obj && typeof obj[name] === "function") {
+            const orig = obj[name];
+            obj[name] = function () { return fn.call(this, orig, arguments); };
+            return true;
+        }
+        return false;
+    }
+
+    // Stages compose inside param(): (unified + genetics) x traitRate x
+    // stageMult — MZ's paramBuffRate IS the stage multiplier slot.
+    if (typeof Game_BattlerBase !== "undefined" && Game_BattlerBase.prototype) {
+        wrapProto(Game_BattlerBase.prototype, "paramBuffRate", function (orig, args) {
+            const key = S21.STAGE_OF_PARAM[args[0]];
+            if (key && isGanjukoBattler(this) && inBattle()) {
+                return S21.stageMult(key, S21.store(this)[key]);
+            }
+            return orig.apply(this, args);
+        });
+        // Faint: stages reset with the battler (v1 §2.4); KO hooks (Part B
+        // subscribes via S21.onFaint) fire with the recorded attacker.
+        wrapProto(Game_BattlerBase.prototype, "die", function (orig, args) {
+            if (isGanjukoBattler(this)) {
+                const st = S21.store(this);
+                if (typeof S21.onFaint === "function") { try { S21.onFaint(this, st.lastAttacker, st.lastSkillId); } catch (e) {} }
+                S21.resetStages(this, true);
+                st.flinch = false; st.trapTurns = 0; st.recharge = false; st.confusionCounter = 0;
+            }
+            return orig.apply(this, args);
+        });
+    }
+
+    if (typeof Game_Battler !== "undefined" && Game_Battler.prototype) {
+        // v1 §2.2: addBuff/addDebuff become stage changes (one call = one
+        // stage; MZ's timed-buff turns are ignored entirely). Calls for
+        // params 2-6 on Ganjuko battlers in battle are intercepted; a
+        // debuff arriving here is hostile by construction (self-drops ride
+        // SELF_STAGE, never data), a buff is friendly.
+        wrapProto(Game_Battler.prototype, "addBuff", function (orig, args) {
+            const key = S21.STAGE_OF_PARAM[args[0]];
+            if (key && isGanjukoBattler(this) && inBattle()) {
+                S21.applyStageChange(this, key, 1, null, { viaData: true });
+                try { if (this._result && this._result.pushAddedBuff) this._result.pushAddedBuff(args[0]); } catch (e) {}
+                try { this.refresh(); } catch (e) {}
+                return;
+            }
+            return orig.apply(this, args);
+        });
+        wrapProto(Game_Battler.prototype, "addDebuff", function (orig, args) {
+            const key = S21.STAGE_OF_PARAM[args[0]];
+            if (key && isGanjukoBattler(this) && inBattle()) {
+                // Source unknown at this seam; treat as foe-caused so the
+                // protection family applies (documented in the report).
+                const foe = S21.foesOf(this)[0] || null;
+                S21.applyStageChange(this, key, -1, foe, { viaData: true });
+                try { if (this._result && this._result.pushAddedDebuff) this._result.pushAddedDebuff(args[0]); } catch (e) {}
+                try { this.refresh(); } catch (e) {}
+                return;
+            }
+            return orig.apply(this, args);
+        });
+        // One-major-status backstop + clock bookkeeping for every route
+        // that adds a state (skills, items, events, ability code).
+        wrapProto(Game_Battler.prototype, "addState", function (orig, args) {
+            const stateId = args[0];
+            if (isGanjukoBattler(this) && inBattle() && S21.MAJOR_STATES.includes(stateId)) {
+                const cur = S21.majorStatusOf(this);
+                if (cur && cur !== stateId) return; // second major never lands
+                if (S21.abilityImmuneTo(this, stateId, null, null)) return;
+                if (S21.fieldImmuneTo(this, stateId)) return;
+            }
+            const had = (typeof this.isStateAffected === "function") ? this.isStateAffected(stateId) : false;
+            const r = orig.apply(this, args);
+            if (!had && typeof this.isStateAffected === "function" && this.isStateAffected(stateId)) {
+                const st = S21.store(this);
+                if (stateId === 10 || stateId === 14) st.statusClock = 0;
+                if (stateId === 31 && !(st.toxicCounter > 0)) st.toxicCounter = 1;
+                if (stateId === 8 && !(st.confusionCounter > 0)) st.confusionCounter = 2 + Math.floor(br() * 4);
+            }
+            return r;
+        });
+        wrapProto(Game_Battler.prototype, "removeState", function (orig, args) {
+            const r = orig.apply(this, args);
+            if (isGanjukoBattler(this)) {
+                const st = S21.store(this);
+                if (args[0] === 31) st.toxicCounter = 0; // cure zeroes the escalation (v2 §2.6 hook 6)
+                if (args[0] === 8) st.confusionCounter = 0;
+                if (args[0] === 10 || args[0] === 14) st.statusClock = 0;
+            }
+            return r;
+        });
+        // Battle start: fresh store, entry hooks.
+        wrapProto(Game_Battler.prototype, "onBattleStart", function (orig, args) {
+            const r = orig.apply(this, args);
+            if (isGanjukoBattler(this)) {
+                this._ganjukoStages = freshStore();
+                S21.store(this).out = false;
+                S21.processEntry(this);
+            }
+            return r;
+        });
+        // Battle end: stages/stores never persist past the battle (v1 §2.4).
+        wrapProto(Game_Battler.prototype, "onBattleEnd", function (orig, args) {
+            if (isGanjukoBattler(this)) {
+                delete this._ganjukoStages;
+                delete this._s21AbilityOverride;
+                if (typeof S21.onBattleEnd === "function") { try { S21.onBattleEnd(this); } catch (e) {} }
+            }
+            return orig.apply(this, args);
+        });
+        // Turn end (v2 §2.6 hook 6): stock first (trait chips for poison /
+        // burn land there per §2.5's design), then the engine-computed
+        // pieces — toxic escalation, trapping chip — then Part B's
+        // end-of-turn ability effects, then field ticks.
+        wrapProto(Game_Battler.prototype, "onTurnEnd", function (orig, args) {
+            const hpBefore = this.hp;
+            const r = orig.apply(this, args);
+            if (!isGanjukoBattler(this) || !inBattle()) return r;
+            const st = S21.store(this);
+            const myAbility = S21.abilityActive ? S21.abilityActive(this) : null;
+            // Poison-chip shields: Hexward Body takes no indirect damage;
+            // Toxinbloom converts poison-family chips into healing. The
+            // trait chips already landed inside stock regenerateHp, so the
+            // shield restores exactly that slip amount (computed from the
+            // states present, MZ slip formula) before anything else runs.
+            const hasPoisonChip = (typeof this.isStateAffected === "function") &&
+                (this.isStateAffected(4) || this.isStateAffected(11));
+            if (hasPoisonChip && (myAbility === "hexward-body" || myAbility === "toxinbloom") &&
+                typeof this.isAlive === "function" && this.isAlive()) {
+                let slip = 0;
+                if (this.isStateAffected(4)) slip += Math.floor(this.mhp * 0.125);
+                if (this.isStateAffected(11)) slip += Math.floor(this.mhp * 0.0625);
+                slip = Math.min(slip, Math.max(hpBefore - 1, 0)); // MZ slip cap
+                if (slip > 0 && this.hp < hpBefore) this._hp = Math.min(this.mhp, this.hp + slip);
+                if (myAbility === "toxinbloom" && typeof this.isAlive === "function" && this.isAlive()) {
+                    const heal = Math.max(1, Math.floor(this.mhp / 8));
+                    try { this.gainHp(heal); } catch (e) {}
+                    S21.log(battlerName(this) + "'s Toxinbloom turned poison into strength!");
+                }
+            }
+            // Toxic escalation: floor(mhp x counter/16), min 1, then +1.
+            if (typeof this.isStateAffected === "function" && this.isStateAffected(31) &&
+                typeof this.isAlive === "function" && this.isAlive() &&
+                myAbility !== "hexward-body" && myAbility !== "toxinbloom") {
+                const chip = Math.max(1, Math.floor(this.mhp * Math.max(1, st.toxicCounter) / 16));
+                S21.log(battlerName(this) + " is hurt by its poison!");
+                try { this.gainHp(-chip); } catch (e) {}
+                st.toxicCounter = Math.min(15, Math.max(1, st.toxicCounter) + 1);
+            }
+            // Trapping chip (Sand Tomb): 1/8 max HP while bound.
+            if (st.trapTurns > 0 && typeof this.isAlive === "function" && this.isAlive()) {
+                if (myAbility !== "hexward-body") {
+                    const chip = Math.max(1, Math.floor(this.mhp / 8));
+                    S21.log(battlerName(this) + " is hurt by the trap!");
+                    try { this.gainHp(-chip); } catch (e) {}
+                }
+                st.trapTurns--;
+            }
+            st.flinch = false; // a flinch flag never survives the turn
+            if (typeof this.isAlive === "function" && this.isAlive()) {
+                try { S21.endOfTurnEffects(this); } catch (e) {}
+                try { S21.tickMisc(this); } catch (e) {}
+            }
+            // Once-per-turn field tick (aura countdown), keyed on troop turn.
+            try {
+                const tc = (typeof $gameTroop !== "undefined" && $gameTroop && typeof $gameTroop.turnCount === "function")
+                    ? $gameTroop.turnCount() : -1;
+                if (tc !== S21._fieldTickStamp) { S21._fieldTickStamp = tc; S21.fieldTick(); }
+            } catch (e) {}
+            S21.processFieldTransitions();
+            return r;
+        });
+    }
+
+    if (typeof Game_Enemy !== "undefined" && Game_Enemy.prototype &&
+        typeof Game_Enemy.prototype.setupGanjukoEnemy === "function") {
+        // Trainer-queue replacement: the same enemy object is re-specced —
+        // that is a fresh entry (stages reset, entry hooks fire).
+        wrapProto(Game_Enemy.prototype, "setupGanjukoEnemy", function (orig, args) {
+            const r = orig.apply(this, args);
+            if (inBattle()) {
+                this._ganjukoStages = freshStore();
+                S21.store(this).out = false;
+                delete this._s21AbilityId;
+                S21.processEntry(this);
+            }
+            return r;
+        });
+    }
+    if (typeof Game_Party !== "undefined" && Game_Party.prototype &&
+        typeof Game_Party.prototype.swapOrder === "function") {
+        wrapProto(Game_Party.prototype, "swapOrder", function (orig, args) {
+            const r = orig.apply(this, args);
+            S21.processFieldTransitions();
+            return r;
+        });
+    }
+
+    if (typeof Game_Action !== "undefined" && Game_Action.prototype) {
+        // Accuracy stages (v1 §2.2): hitType-0 certain hits bypass. Both
+        // stage scales fold into itemHit (MZ's itemEva is ~0 for Ganjuko
+        // battlers; Pokémon's acc/eva stage ratio is one number).
+        wrapProto(Game_Action.prototype, "itemHit", function (orig, args) {
+            const rate = orig.apply(this, args);
+            const target = args[0];
+            const item = (typeof this.item === "function") ? this.item() : null;
+            const subj = (typeof this.subject === "function") ? this.subject() : null;
+            if (!item || !subj || !isGanjukoBattler(subj) || !inBattle()) return rate;
+            if (item.hitType === 0 || rate >= 1) return rate;
+            // No Guard class: either side's Openfield Stance forces a hit.
+            if (S21.abilityActive(subj) === "openfield-stance") return 1;
+            if (target && isGanjukoBattler(target) && S21.abilityActive(target) === "openfield-stance") return 1;
+            let out = rate;
+            out *= S21.stageMult("acc", S21.store(subj).acc);
+            if (target && isGanjukoBattler(target)) {
+                const tAb = S21.abilityActive(target);
+                const ignoreEva = ["lantern-gaze", "trueaim-regard", "inward-eye", "raptors-regard"].includes(S21.abilityActive(subj));
+                if (!ignoreEva) {
+                    let evaStage = S21.store(target).eva;
+                    // Passive EVA bonuses read as stages (Part B conditions).
+                    if (tAb === "dustveil" && S21.skyNow && S21.skyNow() === "Tempest") evaStage += 1;
+                    if (tAb === "stormshroud" && S21.skyNow && S21.skyNow() === "Tempest") evaStage += 1;
+                    if (tAb === "reeling-steps" && typeof target.isStateAffected === "function" && target.isStateAffected(8)) evaStage += 1;
+                    out /= S21.stageMult("eva", Math.max(-6, Math.min(6, evaStage)));
+                }
+                if (tAb === "slipskin" && item.damage && item.damage.type === 0) out *= 0.5;
+            }
+            const sAb = S21.abilityActive(subj);
+            if (sAb === "manifold-eyes") out *= 1.3;
+            if (sAb === "reckless-brawn" && item.hitType === 1) out *= 0.8;
+            if (sAb === "guiding-star" || S21.alliesOf(subj).some(a => S21.abilityActive(a) === "guiding-star")) out *= 1.1;
+            return out;
+        });
+        // Crit rate (v2 §2.10): 1/24 base, stage table [1/24, 1/8, 1/2, 1];
+        // high-crit skills {15, 37, 43}; crit-nullifying abilities on the
+        // target side zero it. (Stage-ignore lives in makeDamageValue.)
+        wrapProto(Game_Action.prototype, "itemCri", function (orig, args) {
+            const target = args[0];
+            const item = (typeof this.item === "function") ? this.item() : null;
+            const subj = (typeof this.subject === "function") ? this.subject() : null;
+            if (!item || !subj || !isGanjukoBattler(subj) || !item.damage || !item.damage.critical) {
+                return orig.apply(this, args);
+            }
+            if (target && isGanjukoBattler(target)) {
+                const tAb = S21.abilityActive(target);
+                if (tAb === "bastion-hide" || tAb === "carapace-guard") return 0;
+                if (subj && S21.abilityActive(subj) === "no-mercy-for-the-sick") {
+                    const ms = S21.majorStatusOf(target);
+                    if (ms === 4 || ms === 31) return 1;
+                }
+            }
+            let stage = 0;
+            if (S21.HIGH_CRIT[item.id]) stage += 1;
+            if (S21.abilityActive(subj) === "loaded-stars") stage += 1;
+            stage = Math.max(0, Math.min(3, stage));
+            return [1 / 24, 1 / 8, 1 / 2, 1][stage];
+        });
+        // Damage chain — this wrap is installed last, so it sees the final
+        // composed value (chart x STAB x roll) and applies, in order: crit
+        // stage-ignore (by store surgery around the inner call), the burn
+        // physical cut (v2 §2.6 hook 4), then Part B's dealt/taken ability
+        // modifiers. Floor >= 1 on any positive result, per v1 §4.2(iii).
+        wrapProto(Game_Action.prototype, "makeDamageValue", function (orig, args) {
+            const target = args[0];
+            const critical = !!args[1];
+            const item = (typeof this.item === "function") ? this.item() : null;
+            const subj = (typeof this.subject === "function") ? this.subject() : null;
+            let saved = null;
+            const unawares = subj && target && isGanjukoBattler(subj) && isGanjukoBattler(target) &&
+                (S21.abilityActive(subj) === "unheeding" || S21.abilityActive(target) === "unheeding");
+            if (subj && target && isGanjukoBattler(subj) && isGanjukoBattler(target) && (critical || unawares)) {
+                const ss = S21.store(subj), ts = S21.store(target);
+                saved = { sa: ss.atk, sm: ss.mat, td: ts.def, tm: ts.mdf };
+                if (critical || S21.abilityActive(subj) === "unheeding") {
+                    if (ss.atk < 0) ss.atk = 0;
+                    if (ss.mat < 0) ss.mat = 0;
+                }
+                if (critical || S21.abilityActive(target) === "unheeding") {
+                    if (ts.def > 0) ts.def = 0;
+                    if (ts.mdf > 0) ts.mdf = 0;
+                }
+                // Unheeding on the ATTACKER also ignores the target's stages
+                // entirely in Pokémon; on the DEFENDER it ignores the
+                // attacker's. The two branches above cover the crit-overlap;
+                // full Unaware semantics: attacker-side ignores ALL target
+                // stages, defender-side ignores ALL attacker stages.
+                if (S21.abilityActive(subj) === "unheeding") { ts.def = 0; ts.mdf = 0; }
+                if (S21.abilityActive(target) === "unheeding") { ss.atk = 0; ss.mat = 0; }
+            }
+            // Recover-type skills (damage.type 3/4): the Section 5 wrap
+            // floors EVERY makeDamageValue result at Math.max(1, value),
+            // which collapses MZ's signed heal values (negative) to 1 —
+            // in-battle healing skills would deal 1 damage instead of
+            // healing (items heal through effects, so drives never caught
+            // it). Recompute the signed value from the stock formula seam
+            // for Ganjuko subjects so heals heal; Bloom Renewal then
+            // scales the result below. (v13 drive-by fix; see report.)
+            let precomputed = null;
+            if (subj && target && item && item.damage && (item.damage.type === 3 || item.damage.type === 4) &&
+                isGanjukoBattler(subj) && typeof this.evalDamageFormula === "function") {
+                try {
+                    let v = this.evalDamageFormula(target);
+                    if (typeof v === "number" && isFinite(v)) {
+                        if (typeof this.applyVariance === "function") v = this.applyVariance(v, item.damage.variance || 0);
+                        precomputed = Math.round(v);
+                    }
+                } catch (e) { precomputed = null; }
+            }
+            let value;
+            try { value = precomputed !== null ? precomputed : orig.apply(this, args); }
+            finally {
+                if (saved) {
+                    const ss = S21.store(subj), ts = S21.store(target);
+                    ss.atk = saved.sa; ss.mat = saved.sm; ts.def = saved.td; ts.mdf = saved.tm;
+                }
+            }
+            if (subj && isGanjukoBattler(subj)) {
+                if (target && isGanjukoBattler(target)) {
+                    const ts = S21.store(target);
+                    ts.lastAttacker = subj;
+                    ts.lastSkillId = item ? item.id : 0;
+                    ts.lastHitContact = (typeof S21.isContact === "function" && item) ? S21.isContact(item, subj) : false;
+                    S21.store(subj).lastTarget = target;
+                }
+                if (typeof value === "number" && value > 0 && item) {
+                    // Burn cut: attacker burned + physical category = x0.5.
+                    if (typeof subj.isStateAffected === "function" && subj.isStateAffected(11) &&
+                        item.hitType === 1 && S21.abilityActive(subj) !== "painfeast") {
+                        value = Math.floor(value * 0.5);
+                    }
+                    try { value = S21.modifyDamageDealt(subj, target, item, value, critical); } catch (e) {}
+                    if (target && isGanjukoBattler(target)) {
+                        try { value = S21.modifyDamageTaken(target, subj, item, value, critical); } catch (e) {}
+                    }
+                    if (value > 0) value = Math.max(1, Math.floor(value));
+                }
+                // Bloom Renewal: healing the bearer performs restores x1.5.
+                if (typeof value === "number" && value < 0 && item && S21.abilityActive(subj) === "bloom-renewal") {
+                    value = Math.floor(value * 1.5);
+                }
+            }
+            return value;
+        });
+        // Post-hit rider seam (v1 §2.4 + v2 hooks 7/8): SELF_STAGE, foe
+        // stage riders, flinch riders, recharge, recoil, trapping. Stock
+        // apply() only calls this when the action connected (result.isHit).
+        wrapProto(Game_Action.prototype, "applyItemUserEffect", function (orig, args) {
+            const r = orig.apply(this, args);
+            try {
+                const target = args[0];
+                const item = (typeof this.item === "function") ? this.item() : null;
+                const subj = (typeof this.subject === "function") ? this.subject() : null;
+                if (!item || !subj || !isGanjukoBattler(subj) || !inBattle()) return r;
+                const result = (target && typeof target.result === "function") ? target.result() : null;
+                const hit = result && typeof result.isHit === "function" ? result.isHit() : true;
+                if (!hit) return r;
+                const chanceMult = (stateId) => S21.riderChanceMult(subj, item, stateId);
+                const selfStages = S21.SELF_STAGE[item.id];
+                if (selfStages && subj._s21SelfStageFor !== this) {
+                    // Once per action (all SELF_STAGE skills are single-hit;
+                    // the stamp keeps repeats from double-dropping).
+                    subj._s21SelfStageFor = this;
+                    for (const [k, d] of selfStages) S21.applyStageChange(subj, k, d, null, { selfInflicted: true });
+                }
+                if (target && target !== subj && isGanjukoBattler(target)) {
+                    const foeStages = S21.FOE_STAGE[item.id];
+                    if (foeStages && !S21.riderBlocked(subj, target, item)) {
+                        for (const [k, d, ch] of foeStages) {
+                            if (brChance(ch * chanceMult(0))) S21.applyStageChange(target, k, d, subj, {});
+                        }
+                    }
+                    const fl = S21.FLINCH_RIDERS[item.id];
+                    if (fl && typeof target.isAlive === "function" && target.isAlive() &&
+                        !S21.riderBlocked(subj, target, item) &&
+                        S21.abilityActive(target) !== "stillpoint" &&
+                        brChance(fl * chanceMult(0))) {
+                        S21.store(target).flinch = true;
+                        if (S21.abilityActive(target) === "unbowed") {
+                            S21.applyStageChange(target, "agi", 1, null, { ignoreProtect: true });
+                        }
+                    }
+                    if (item.id === S21.TRAP_SKILL && typeof target.isAlive === "function" && target.isAlive()) {
+                        const tTypes = S21.effectiveTypes(target);
+                        if (!tTypes.includes(8)) { // Umbra <- trapping immunity (v2 §2.4)
+                            const ts = S21.store(target);
+                            ts.trapTurns = 4 + Math.floor(br() * 2); // 4-5 turns
+                            ts.trapSource = subj;
+                            S21.log(battlerName(target) + " was trapped by Sand Tomb!");
+                        }
+                    }
+                    // Fire-thaw (defender side, v2 §2.6 hook 9): a frozen
+                    // target hit by a Fire damaging move thaws after damage.
+                    if (item.damage && item.damage.elementId === 2 && item.damage.type > 0 &&
+                        typeof target.isStateAffected === "function" && target.isStateAffected(14)) {
+                        target.removeState(14);
+                        S21.log(battlerName(target) + " was thawed by the heat!");
+                    }
+                }
+                if (S21.RECHARGE_SKILLS[item.id]) S21.store(subj).recharge = true;
+                const rec = S21.RECOIL[item.id];
+                if (rec && result && result.hpDamage > 0 && typeof subj.isAlive === "function" && subj.isAlive()) {
+                    const sAb = S21.abilityActive(subj);
+                    if (sAb !== "skullbastion" && sAb !== "hexward-body") {
+                        const dmg = Math.max(1, Math.floor(result.hpDamage * rec));
+                        S21.log(battlerName(subj) + " was hurt by recoil!");
+                        try { subj.gainHp(-dmg); } catch (e) {}
+                    }
+                }
+            } catch (e) {}
+            return r;
+        });
+        // Status application gate (v2 §2.6 hook 2): every skill state rider
+        // flows through here. Immunity / one-major refusals log the
+        // Pokémon lines; the chance roll uses the seeded battle RNG.
+        wrapProto(Game_Action.prototype, "itemEffectAddNormalState", function (orig, args) {
+            const target = args[0], effect = args[1];
+            const item = (typeof this.item === "function") ? this.item() : null;
+            const subj = (typeof this.subject === "function") ? this.subject() : null;
+            const stateId = effect ? effect.dataId : 0;
+            const gated = isGanjukoBattler(target) && inBattle() && item && subj &&
+                (S21.MAJOR_STATES.includes(stateId) || stateId === 8);
+            if (!gated) return orig.apply(this, args);
+            if (S21.riderBlocked(subj, target, item)) return; // Warding Dust / Brute Clarity
+            // Mirrorward: status-class moves bounce back at their user.
+            if (item.damage && item.damage.type === 0 && S21.abilityActive(target) === "mirrorward" &&
+                isOpponent(subj, target)) {
+                S21.log(battlerName(target) + "'s Mirrorward bounced it back!");
+                const back = S21.applyStatus(subj, subj, stateId, item);
+                if (back.ok) { try { this.makeSuccess(subj); } catch (e) {} }
+                return;
+            }
+            if (item.damage && item.damage.type === 0 && S21.abilityActive(target) === "gilded-immunity" &&
+                isOpponent(subj, target)) {
+                S21.log("It doesn't affect " + battlerName(target) + "!");
+                return;
+            }
+            const gate = S21.canApplyStatus(subj, target, stateId, item);
+            if (!gate.ok) {
+                if (gate.reason === "immune") S21.log("It doesn't affect " + battlerName(target) + "!");
+                else if (item.damage && item.damage.type === 0) S21.log("But it failed!");
+                return;
+            }
+            let chance = effect.value1 || 0;
+            if (typeof this.isCertainHit === "function" && !this.isCertainHit()) {
+                if (typeof target.stateRate === "function") chance *= target.stateRate(stateId);
+                if (typeof this.lukEffectRate === "function") chance *= this.lukEffectRate(target);
+            }
+            chance *= S21.riderChanceMult(subj, item, stateId);
+            if (brChance(chance)) {
+                const applied = S21.applyStatus(subj, target, stateId, item);
+                if (applied.ok) { try { this.makeSuccess(target); } catch (e) {} }
+            }
+            return;
+        });
+        // Drain correction (v2 Step 3 verification): stock MZ returns 100%
+        // of damage as healing; the Champions standard is 50%.
+        wrapProto(Game_Action.prototype, "gainDrainedHp", function (orig, args) {
+            const value = args[0];
+            const subj = (typeof this.subject === "function") ? this.subject() : null;
+            const isDrain = (typeof this.isDrain === "function") ? this.isDrain() : false;
+            if (!isDrain || !subj || !isGanjukoBattler(subj) || !(value > 0)) return orig.apply(this, args);
+            const gain = Math.max(1, Math.floor(value * 0.5));
+            let gainTarget = subj;
+            try { if (this._reflectionTarget) gainTarget = this._reflectionTarget; } catch (e) {}
+            // Gravewater: a drainer of a Gravewater bearer takes the drain
+            // as damage instead of healing.
+            const lastTarget = S21.store(subj).lastTarget;
+            if (lastTarget && isGanjukoBattler(lastTarget) && lastTarget !== gainTarget &&
+                S21.abilityActive(lastTarget) === "gravewater") {
+                S21.log(battlerName(gainTarget) + " was hurt by the foul ooze!");
+                try { gainTarget.gainHp(-gain); } catch (e) {}
+                return;
+            }
+            try { gainTarget.gainHp(gain); } catch (e) {}
+        });
+    }
+
+    // ------------------------------------------------------- action gate
+    // v2 §2.6 hook 3, exact order: recharge -> freeze -> sleep -> paralysis
+    // -> flinch -> confusion. A cancelled action consumes the turn (it is
+    // NOT an Arena timeout strike — the action was submitted and played).
+    S21.actionGate = function (subject) {
+        if (!subject || !isGanjukoBattler(subject)) return false;
+        if (typeof subject.isAlive === "function" && !subject.isAlive()) return false;
+        const action = (typeof subject.currentAction === "function") ? subject.currentAction() : null;
+        try { if (S21.extraActionGate(subject, action)) return true; } catch (e) {}
+        const st = S21.store(subject);
+        const myAbility = S21.abilityActive(subject);
+        if (st.recharge) {
+            st.recharge = false;
+            S21.log(battlerName(subject) + " must recharge!");
+            return true;
+        }
+        const has = (id) => (typeof subject.isStateAffected === "function") && subject.isStateAffected(id);
+        if (has(14)) {
+            st.statusClock++;
+            if (st.statusClock >= 3 || brChance(0.25)) {
+                subject.removeState(14);
+                S21.log(battlerName(subject) + " thawed out!");
+            } else {
+                S21.log(battlerName(subject) + " is frozen solid!");
+                return true;
+            }
+        }
+        if (has(10) && myAbility !== "eternal-slumber") {
+            st.statusClock++;
+            let wake;
+            if (myAbility === "dawnriser") wake = st.statusClock >= 2 || (st.statusClock === 1 && brChance(1 / 3));
+            else wake = st.statusClock >= 3 || (st.statusClock === 2 && brChance(1 / 3));
+            if (wake) {
+                subject.removeState(10);
+                S21.log(battlerName(subject) + " woke up!");
+            } else {
+                S21.log(battlerName(subject) + " is fast asleep!");
+                return true;
+            }
+        }
+        if (has(12) && brChance(0.125)) {
+            S21.log(battlerName(subject) + " is paralyzed! It can't move!");
+            return true;
+        }
+        if (st.flinch) {
+            st.flinch = false;
+            S21.log(battlerName(subject) + " flinched and couldn't move!");
+            if (myAbility === "unbowed") S21.applyStageChange(subject, "agi", 1, null, { ignoreProtect: true });
+            return true;
+        }
+        if (has(8)) {
+            if (st.confusionCounter > 0) st.confusionCounter--;
+            if (st.confusionCounter <= 0) {
+                subject.removeState(8);
+                S21.log(battlerName(subject) + " snapped out of its confusion!");
+            } else if (brChance(1 / 3)) {
+                const dmg = S21.confusionSelfHit(subject);
+                S21.log(battlerName(subject) + " is confused! It hurt itself in its confusion!");
+                try { subject.gainHp(-dmg); } catch (e) {}
+                return true;
+            }
+        }
+        return false;
+    };
+    if (typeof BattleManager !== "undefined" && BattleManager && typeof BattleManager.startAction === "function") {
+        const _s21_BM_startAction = BattleManager.startAction;
+        BattleManager.startAction = function () {
+            const subject = this._subject;
+            let mpBefore = null;
+            try { if (subject && typeof subject.mp === "number") mpBefore = subject.mp; } catch (e) {}
+            let cancelled = false;
+            try { cancelled = !!S21.actionGate(subject); } catch (e) { cancelled = false; }
+            _s21_BM_startAction.call(this);
+            if (cancelled) {
+                this._targets = [];
+                // A gate-cancelled action was submitted, not used: refund
+                // the MP stock useItem just charged.
+                try {
+                    if (subject && mpBefore !== null && typeof subject.setMp === "function") subject.setMp(mpBefore);
+                } catch (e) {}
+            }
+        };
+    }
+    // Trapping blocks the switch command: Sand Tomb's bind plus the
+    // trapping abilities (Part B consults trapBlockedByAbility).
+    if (typeof Scene_Battle !== "undefined" && Scene_Battle.prototype &&
+        typeof Scene_Battle.prototype.onSwitchGanjukoOk === "function") {
+        const _s21_SB_onSwitchOk = Scene_Battle.prototype.onSwitchGanjukoOk;
+        Scene_Battle.prototype.onSwitchGanjukoOk = function () {
+            try {
+                const members = (typeof $gameParty !== "undefined" && $gameParty && typeof $gameParty.battleMembers === "function")
+                    ? $gameParty.battleMembers() : [];
+                const outgoing = members[0];
+                if (outgoing && isGanjukoBattler(outgoing)) {
+                    const st = S21.store(outgoing);
+                    const trapped = st.trapTurns > 0 || S21.trapBlockedByAbility(outgoing);
+                    if (trapped && typeof outgoing.isAlive === "function" && outgoing.isAlive()) {
+                        S21.log(battlerName(outgoing) + " can't be switched out!");
+                        try { if (typeof SoundManager !== "undefined") SoundManager.playBuzzer(); } catch (e) {}
+                        return;
+                    }
+                }
+            } catch (e) {}
+            const r = _s21_SB_onSwitchOk.call(this);
+            S21.processFieldTransitions();
+            return r;
+        };
+    }
+
+    S21._status.core = true;
+})();
+// === END Section 21 Part A — stages + status core ===
+
+
+// ============================================================================
+// SECTION 21 Part B — ABILITY FRAMEWORK (OTA v13)
+// ============================================================================
+// The 316-entry Champions ability library (work/abilities/library.json +
+// assignments.json) implemented against Part A's seams. Descriptors live in
+// S21.ABILITY_IMPL (Part B3, next block); this block is the machinery:
+// suppression/copy/swap registry, the Sky + Aura field object, damage
+// modifiers, the on-hit reaction queue, entry / end-of-turn / KO hooks,
+// pre-move effects, passive param rates, and the public UI lines.
+//
+// Hard rules (test-enforced in champions-abilities): no code here reads or
+// writes Section 18 genetics; every random draw flows through
+// S21.battleRandom; nothing renders a raw HP number.
+(() => {
+    "use strict";
+    const GE = window.GanjukoEngine;
+    if (!GE || !GE.S21) return;
+    const S21 = GE.S21;
+    const br = () => S21.battleRandom();
+    const brChance = (p) => br() < p;
+    const name = (b) => S21.battlerName(b);
+    const inBattle = () => S21.inBattle();
+    const IMPL = () => S21.ABILITY_IMPL || {};
+    const implOf = (b) => { const id = S21.abilityActive(b); return id ? (IMPL()[id] || null) : null; };
+    const rawImplOf = (b) => { const id = S21.abilityOf(b); return id ? (IMPL()[id] || null) : null; };
+
+        // Generated from work/abilities/library.json (name / one-liner / hook / tier).
+    S21.ABILITY_LIB = {
+        "musk-haze": { name: "Musk Haze", desc: "Its attacks carry a rank musk that can make the target flinch.", hook: "dmg-dealt", tier: "standard" },
+        "nightrain": { name: "Nightrain", desc: "It brings the night rain with it; the sky turns to Night when it enters.", hook: "field", tier: "standard" },
+        "quickening": { name: "Quickening", desc: "It gathers momentum without pause; its Speed climbs every turn.", hook: "end-of-turn", tier: "strong" },
+        "bastion-hide": { name: "Bastion Hide", desc: "A fortress hide that turns aside every telling blow.", hook: "dmg-taken", tier: "standard" },
+        "last-rampart": { name: "Last Rampart", desc: "It will not fall to one blow while its strength is whole.", hook: "dmg-taken", tier: "strong" },
+        "stillwater-aura": { name: "Stillwater Aura", desc: "A hush of damp air settles; nothing here can burst.", hook: "system", tier: "utility" },
+        "suppleframe": { name: "Suppleframe", desc: "A loose, limber frame that shock cannot lock up.", hook: "status", tier: "standard" },
+        "dustveil": { name: "Dustveil", desc: "It slips through the tempest haze, half-seen and hard to strike.", hook: "passive", tier: "standard" },
+        "sparksnare": { name: "Sparksnare", desc: "Snapping sparks crawl over its skin and bite whatever touches it.", hook: "on-hit", tier: "standard" },
+        "stormcell": { name: "Stormcell", desc: "It drinks the lightning and grows stronger on it.", hook: "dmg-taken", tier: "strong" },
+        "deepwell": { name: "Deepwell", desc: "Its body is a well; struck by water, it only fills.", hook: "dmg-taken", tier: "strong" },
+        "blithe-mind": { name: "Blithe Mind", desc: "Too cheerfully unaware to be charmed, goaded, or cowed.", hook: "status", tier: "standard" },
+        "clearsky-mind": { name: "Clearsky Mind", desc: "Its calm unravels the mood of the sky itself.", hook: "field", tier: "standard" },
+        "manifold-eyes": { name: "Manifold Eyes", desc: "A hundred lenses miss nothing.", hook: "pre-move", tier: "standard" },
+        "sleepless-vigil": { name: "Sleepless Vigil", desc: "It has never once closed its eyes.", hook: "status", tier: "standard" },
+        "prismflesh": { name: "Prismflesh", desc: "Its flesh takes the hue \u2014 and the kind \u2014 of whatever strikes it.", hook: "on-hit", tier: "standard" },
+        "antivenin": { name: "Antivenin", desc: "Its blood unmakes venom on contact.", hook: "status", tier: "standard" },
+        "kindled-core": { name: "Kindled Core", desc: "Struck by flame, it banks the fire and burns the brighter.", hook: "dmg-taken", tier: "strong" },
+        "warding-dust": { name: "Warding Dust", desc: "A fine dust settles over it and smothers every side effect.", hook: "dmg-taken", tier: "standard" },
+        "own-cadence": { name: "Own Cadence", desc: "It keeps its own rhythm, deaf to confusion and bluster.", hook: "status", tier: "standard" },
+        "anchorhold": { name: "Anchorhold", desc: "Rooted fast; no force on the field can drag it out.", hook: "system", tier: "utility" },
+        "dread-presence": { name: "Dread Presence", desc: "Its arrival alone is enough to make strong foes hesitate.", hook: "entry", tier: "strong" },
+        "umbral-tether": { name: "Umbral Tether", desc: "It stands on your shadow, and your shadow cannot leave.", hook: "system", tier: "strong" },
+        "shardhide": { name: "Shardhide", desc: "A hide of broken edges that pays every touch in blood.", hook: "on-hit", tier: "standard" },
+        "ninefold-ward": { name: "Ninefold Ward", desc: "A ninefold ward turns aside all but the blows that find its true weakness.", hook: "dmg-taken", tier: "apex" },
+        "skyborne": { name: "Skyborne", desc: "It never touches the ground, and the ground cannot touch it.", hook: "dmg-taken", tier: "strong" },
+        "dreamspore": { name: "Dreamspore", desc: "Its spores drift onto anything that touches it \u2014 poison, palsy, or sleep.", hook: "on-hit", tier: "standard" },
+        "shared-burden": { name: "Shared Burden", desc: "What sickness it is given, it gives back in kind.", hook: "status", tier: "standard" },
+        "brightbody": { name: "Brightbody", desc: "A body of clear light that no foe can dim or drag down.", hook: "status", tier: "strong" },
+        "wild-renewal": { name: "Wild Renewal", desc: "The wild itself mends it whenever it withdraws.", hook: "switch", tier: "standard" },
+        "galvanic-spire": { name: "Galvanic Spire", desc: "Every spark on the field bends toward it \u2014 and feeds it.", hook: "dmg-taken", tier: "strong" },
+        "fortunes-smile": { name: "Fortune's Smile", desc: "Fortune leans close and whispers twice as often.", hook: "dmg-dealt", tier: "strong" },
+        "nightcurrent": { name: "Nightcurrent", desc: "In the night rain it moves like the current itself.", hook: "passive", tier: "standard" },
+        "sunreacher": { name: "Sunreacher", desc: "It drinks the daylight and outruns the morning.", hook: "passive", tier: "standard" },
+        "lantern-gaze": { name: "Lantern Gaze", desc: "Its gaze is a lantern: steady, and never dimmed.", hook: "pre-move", tier: "standard" },
+        "echo-talent": { name: "Echo Talent", desc: "It enters wearing a borrowed gift, copied from the foe before it.", hook: "entry", tier: "strong" },
+        "titans-gift": { name: "Titan's Gift", desc: "Strength out of all proportion lives in this small frame.", hook: "passive", tier: "apex" },
+        "venomspine": { name: "Venomspine", desc: "Barbs along its body weep a patient venom.", hook: "on-hit", tier: "standard" },
+        "stillpoint": { name: "Stillpoint", desc: "A mind like still water; nothing startles it.", hook: "status", tier: "standard" },
+        "magmashell": { name: "Magmashell", desc: "A shell of living magma that no frost can set upon.", hook: "status", tier: "standard" },
+        "tideveil": { name: "Tideveil", desc: "A veil of living water that fire cannot cling to.", hook: "status", tier: "standard" },
+        "lodestone-grasp": { name: "Lodestone Grasp", desc: "Its magnetic grasp holds fast to anything that carries a charge.", hook: "system", tier: "utility" },
+        "hushfield": { name: "Hushfield", desc: "A field of hush swallows every sound before it lands.", hook: "dmg-taken", tier: "standard" },
+        "nightwell": { name: "Nightwell", desc: "It gathers the night rain and drinks deep between turns.", hook: "end-of-turn", tier: "standard" },
+        "tempestcaller": { name: "Tempestcaller", desc: "Where it walks, the dust rises into a howling tempest.", hook: "field", tier: "standard" },
+        "dread-tax": { name: "Dread Tax", desc: "Its presence is a weight; every foe move costs dearly.", hook: "system", tier: "standard" },
+        "winterfat": { name: "Winterfat", desc: "Layers of winter fat shrug off flame and killing cold alike.", hook: "dmg-taken", tier: "standard" },
+        "dawnriser": { name: "Dawnriser", desc: "It wakes with the first light, long before it should.", hook: "status", tier: "utility" },
+        "cinderhide": { name: "Cinderhide", desc: "Its body is banked coals; touch it and be burned.", hook: "on-hit", tier: "standard" },
+        "slipaway": { name: "Slipaway", desc: "There is no snare, trap, or stare that can hold it in a wild fight.", hook: "system", tier: "utility" },
+        "trueaim-regard": { name: "Trueaim Regard", desc: "A gaze that measures distance the way scales measure weight.", hook: "pre-move", tier: "standard" },
+        "shearbrand": { name: "Shearbrand", desc: "Blades it carries in body and will; no foe can blunt them.", hook: "status", tier: "standard" },
+        "slacker-heart": { name: "Slacker Heart", desc: "For every moment of effort, it demands a moment of rest.", hook: "pre-move", tier: "detrimental" },
+        "reckless-brawn": { name: "Reckless Brawn", desc: "All force, no finesse \u2014 it hits harder and aims worse.", hook: "passive", tier: "strong" },
+        "dazing-charm": { name: "Dazing Charm", desc: "Something about it makes attackers hesitate, heartsick.", hook: "on-hit", tier: "standard" },
+        "anode-soul": { name: "Anode Soul", desc: "It hums brighter beside a kindred charge.", hook: "passive", tier: "standard" },
+        "cathode-soul": { name: "Cathode Soul", desc: "It drinks the field's charge and answers in kind.", hook: "passive", tier: "standard" },
+        "skyward-guise": { name: "Skyward Guise", desc: "Its body reads the sky and becomes what the sky demands.", hook: "field", tier: "standard" },
+        "sloughskin": { name: "Sloughskin", desc: "It leaves its troubles behind in a cast-off skin.", hook: "end-of-turn", tier: "standard" },
+        "painfeast": { name: "Painfeast", desc: "Pain is a meal to it; sickness only makes it savage.", hook: "passive", tier: "strong" },
+        "lustrous-scales": { name: "Lustrous Scales", desc: "Beneath affliction its scales harden to a mirror shine.", hook: "passive", tier: "standard" },
+        "gravewater": { name: "Gravewater", desc: "What it leaks is poison to anything that would drink from it.", hook: "dmg-taken", tier: "standard" },
+        "thornsurge": { name: "Thornsurge", desc: "Wounded, the wild in it surges past all restraint.", hook: "dmg-dealt", tier: "standard" },
+        "cindersurge": { name: "Cindersurge", desc: "Wounded, its inner fire stops asking permission.", hook: "dmg-dealt", tier: "standard" },
+        "riptide-surge": { name: "Riptide Surge", desc: "Wounded, the tide in it turns and comes back harder.", hook: "dmg-dealt", tier: "standard" },
+        "hiveheart": { name: "Hiveheart", desc: "Wounded, the whole swarm answers through one body.", hook: "dmg-dealt", tier: "standard" },
+        "skullbastion": { name: "Skullbastion", desc: "A skull like a fortress gate; its own violence cannot shake it.", hook: "dmg-dealt", tier: "standard" },
+        "dawncaller": { name: "Dawncaller", desc: "It carries the sunrise in its throat and calls it down.", hook: "field", tier: "standard" },
+        "snareground": { name: "Snareground", desc: "The ground itself is its accomplice; nothing rooted leaves.", hook: "system", tier: "strong" },
+        "undying-spark": { name: "Undying Spark", desc: "A spark that refuses, on principle, to go out.", hook: "status", tier: "standard" },
+        "pale-shroud": { name: "Pale Shroud", desc: "A pale shroud hangs over it; hostile hands slide off.", hook: "status", tier: "strong" },
+        "innocent-might": { name: "Innocent Might", desc: "Power without malice, and without limit it can find.", hook: "passive", tier: "apex" },
+        "carapace-guard": { name: "Carapace Guard", desc: "A shell grown over a lifetime, proof against the telling blow.", hook: "dmg-taken", tier: "standard" },
+        "stilled-heavens": { name: "Stilled Heavens", desc: "Around it, the heavens themselves hold their breath.", hook: "field", tier: "standard" },
+        "reeling-steps": { name: "Reeling Steps", desc: "It staggers \u2014 and a staggering target is a hard one to hit.", hook: "passive", tier: "utility" },
+        "galvengine": { name: "Galvengine", desc: "Lightning is not a threat to it; lightning is fuel.", hook: "dmg-taken", tier: "strong" },
+        "unbowed": { name: "Unbowed", desc: "Every startle only teaches it to move sooner next time.", hook: "on-hit", tier: "standard" },
+        "stormshroud": { name: "Stormshroud", desc: "It wears the tempest like a cloak and cannot be found inside it.", hook: "passive", tier: "standard" },
+        "wrathpoint": { name: "Wrathpoint", desc: "One cruel blow and its temper goes to the very top.", hook: "on-hit", tier: "standard" },
+        "kilnbody": { name: "Kilnbody", desc: "Built like a kiln; fire is its working weather.", hook: "dmg-taken", tier: "standard" },
+        "open-book": { name: "Open Book", desc: "Everything that happens to it, happens twice as much.", hook: "status", tier: "strong" },
+        "parchhide": { name: "Parchhide", desc: "Skin that drinks the night rain and cracks under the day.", hook: "end-of-turn", tier: "standard" },
+        "cold-reading": { name: "Cold Reading", desc: "It reads a foe the way the Listener reads a room \u2014 once, completely.", hook: "entry", tier: "standard" },
+        "pugilists-oath": { name: "Pugilist's Oath", desc: "Every strike it throws is thrown the way it was taught: all in.", hook: "dmg-dealt", tier: "standard" },
+        "toxinbloom": { name: "Toxinbloom", desc: "Poison does not sicken it; poison feeds it.", hook: "end-of-turn", tier: "strong" },
+        "true-affinity": { name: "True Affinity", desc: "It does not borrow its element; it is its element.", hook: "dmg-dealt", tier: "strong" },
+        "chainmaster": { name: "Chainmaster", desc: "One motion, perfectly repeated, never cut short.", hook: "dmg-dealt", tier: "standard" },
+        "rainwash": { name: "Rainwash", desc: "The night rain washes every affliction off it.", hook: "end-of-turn", tier: "standard" },
+        "sunfeast": { name: "Sunfeast", desc: "It feasts on daylight, and the feast consumes it.", hook: "passive", tier: "standard" },
+        "feversteps": { name: "Feversteps", desc: "Affliction cannot slow a body that runs hotter than its sickness.", hook: "passive", tier: "standard" },
+        "plainchant": { name: "Plainchant", desc: "It sings one plain note, and every song it knows becomes that note.", hook: "dmg-dealt", tier: "standard" },
+        "deadeye-creed": { name: "Deadeye Creed", desc: "It does not strike often at the weak point \u2014 but when it does, it is ruinous.", hook: "dmg-dealt", tier: "standard" },
+        "hexward-body": { name: "Hexward Body", desc: "No slow harm can touch it; only honest blows land.", hook: "dmg-taken", tier: "strong" },
+        "openfield-stance": { name: "Openfield Stance", desc: "It fights in the open, and drags every foe into the open with it.", hook: "pre-move", tier: "standard" },
+        "lastlight": { name: "Lastlight", desc: "It is in no hurry whatsoever, and the battle waits for it.", hook: "pre-move", tier: "detrimental" },
+        "smallcraft": { name: "Smallcraft", desc: "It loves small tools and uses them better than great ones.", hook: "dmg-dealt", tier: "strong" },
+        "canopy-ward": { name: "Canopy Ward", desc: "Under the day canopy, no sickness can settle on it.", hook: "status", tier: "standard" },
+        "wardbreaker": { name: "Wardbreaker", desc: "Its blows do not ask what guards you; they arrive anyway.", hook: "system", tier: "strong" },
+        "loaded-stars": { name: "Loaded Stars", desc: "The stars are loaded dice, and they are loaded for it.", hook: "dmg-dealt", tier: "standard" },
+        "ashes-toll": { name: "Ashes' Toll", desc: "Bring it down by hand, and its ashes will bill you for it.", hook: "ko-fainted", tier: "standard" },
+        "threatsense": { name: "Threatsense", desc: "It shivers on entry, reading the danger in the room.", hook: "entry", tier: "utility" },
+        "dreamreading": { name: "Dreamreading", desc: "It dreams one true thing about the foe before the fighting starts.", hook: "entry", tier: "utility" },
+        "unheeding": { name: "Unheeding", desc: "It simply does not care how much you have grown or shrunk.", hook: "dmg-dealt", tier: "strong" },
+        "prism-lens": { name: "Prism Lens", desc: "Through its lens, even a blunted blow finds the seam.", hook: "dmg-dealt", tier: "standard" },
+        "aegis-weave": { name: "Aegis Weave", desc: "A woven aegis that takes the edge off the worst-matched blows.", hook: "dmg-taken", tier: "strong" },
+        "slow-kindling": { name: "Slow Kindling", desc: "A great fire, but it takes five turns to catch.", hook: "passive", tier: "detrimental" },
+        "bold-spirit": { name: "Bold Spirit", desc: "It refuses to believe in untouchable things.", hook: "dmg-dealt", tier: "standard" },
+        "maelstrom-call": { name: "Maelstrom Call", desc: "Every tide on the field runs, sooner or later, into its whirlpool.", hook: "dmg-taken", tier: "strong" },
+        "stormmend": { name: "Stormmend", desc: "The tempest knits it back together, flake by flake.", hook: "end-of-turn", tier: "standard" },
+        "bedrock-soul": { name: "Bedrock Soul", desc: "Bedrock does not care that you found the fault line.", hook: "dmg-taken", tier: "strong" },
+        "tempest-herald": { name: "Tempest Herald", desc: "It arrives ahead of the storm, announcing it.", hook: "field", tier: "standard" },
+        "all-in-heart": { name: "All-In Heart", desc: "It throws its whole body into every blow and calls the cost fair.", hook: "dmg-dealt", tier: "standard" },
+        "bloomtide-gift": { name: "Bloomtide Gift", desc: "In daylight it blooms, and the whole field blooms with it.", hook: "passive", tier: "standard" },
+        "nightmare-tithe": { name: "Nightmare Tithe", desc: "Sleeping near it is a debt collected in flesh.", hook: "end-of-turn", tier: "standard" },
+        "brute-clarity": { name: "Brute Clarity", desc: "It trades every trick for one clean, honest enormity of force.", hook: "dmg-dealt", tier: "strong" },
+        "mirror-temper": { name: "Mirror Temper", desc: "Praise it and it weakens; wound its pride and it grows.", hook: "status", tier: "strong" },
+        "rattlebones": { name: "Rattlebones", desc: "Something in its stare spoils every appetite on the other side.", hook: "system", tier: "utility" },
+        "defiance": { name: "Defiance", desc: "Every insult to its strength is answered with more of it.", hook: "status", tier: "strong" },
+        "faltering-crown": { name: "Faltering Crown", desc: "Its crown is heavy, and once it starts to slip, it falls.", hook: "passive", tier: "detrimental" },
+        "hexed-husk": { name: "Hexed Husk", desc: "Strike it, and the curse may reach back and seal your striking hand.", hook: "on-hit", tier: "standard" },
+        "field-medic": { name: "Field Medic", desc: "Between blows, it tends the ones beside it.", hook: "end-of-turn", tier: "utility" },
+        "guardian-stance": { name: "Guardian Stance", desc: "It stands in the way, on purpose, every single time.", hook: "dmg-taken", tier: "standard" },
+        "fracture-plate": { name: "Fracture Plate", desc: "Its armor cracks \u2014 and every crack makes it faster.", hook: "on-hit", tier: "standard" },
+        "prism-scales": { name: "Prism Scales", desc: "Unhurt, its scales are a prism that breaks the force of any blow.", hook: "dmg-taken", tier: "strong" },
+        "venom-vigor": { name: "Venom Vigor", desc: "Poison in its veins is just more fuel for its fists.", hook: "dmg-dealt", tier: "standard" },
+        "pyre-vigor": { name: "Pyre Vigor", desc: "Burning only concentrates its fire into finer flame.", hook: "dmg-dealt", tier: "standard" },
+        "kindred-sense": { name: "Kindred Sense", desc: "It hears its allies' intent and is never where their blows land.", hook: "dmg-taken", tier: "utility" },
+        "weatherheart": { name: "Weatherheart", desc: "Its heart is weather: something always rising, something always falling.", hook: "end-of-turn", tier: "strong" },
+        "stormproof-coat": { name: "Stormproof Coat", desc: "A coat grown for bad weather and worse company.", hook: "status", tier: "standard" },
+        "venomtouch": { name: "Venomtouch", desc: "Its touch alone is a dose.", hook: "dmg-dealt", tier: "standard" },
+        "returnbloom": { name: "Returnbloom", desc: "Withdrawn, it blooms back toward whole.", hook: "switch", tier: "strong" },
+        "proudcrest": { name: "Proudcrest", desc: "It carries its crest too proudly to ever let it droop.", hook: "status", tier: "standard" },
+        "tempest-rush": { name: "Tempest Rush", desc: "The tempest is not its enemy; the tempest is its road.", hook: "passive", tier: "standard" },
+        "slipskin": { name: "Slipskin", desc: "Status tricks slide off its skin like rain off oil.", hook: "dmg-taken", tier: "standard" },
+        "lastword-mind": { name: "Lastword Mind", desc: "It lets everyone else speak first \u2014 then answers perfectly.", hook: "dmg-dealt", tier: "standard" },
+        "borrowed-face": { name: "Borrowed Face", desc: "It walks in wearing the face of the friend behind it.", hook: "entry", tier: "strong" },
+        "perfect-mimic": { name: "Perfect Mimic", desc: "One look, and it is you \u2014 everything but your wounds.", hook: "entry", tier: "strong" },
+        "ghoststep": { name: "Ghoststep", desc: "Walls, veils, and stand-ins mean nothing to it.", hook: "dmg-dealt", tier: "standard" },
+        "plague-touch": { name: "Plague Touch", desc: "What touches it, carries it away with them.", hook: "on-hit", tier: "standard" },
+        "bloodsurge": { name: "Bloodsurge", desc: "Every fall it causes makes it hungrier.", hook: "ko-dealt", tier: "strong" },
+        "retribution": { name: "Retribution", desc: "Struck from the dark, it answers with righteous force.", hook: "on-hit", tier: "standard" },
+        "startle-reflex": { name: "Startle Reflex", desc: "Fear makes it faster, not slower.", hook: "on-hit", tier: "standard" },
+        "mirrorward": { name: "Mirrorward", desc: "A polished ward that hands every hex back to its sender.", hook: "dmg-taken", tier: "strong" },
+        "thornfeast": { name: "Thornfeast", desc: "It eats the forest's weapons and grows on them.", hook: "dmg-taken", tier: "strong" },
+        "tricksters-bow": { name: "Trickster's Bow", desc: "It bows, it grins, and its trick is already done.", hook: "pre-move", tier: "strong" },
+        "tempest-force": { name: "Tempest Force", desc: "In the tempest, the earth itself hits harder through it.", hook: "dmg-dealt", tier: "standard" },
+        "barbhide": { name: "Barbhide", desc: "A hide of forged barbs that punishes every touch.", hook: "on-hit", tier: "standard" },
+        "twofold-soul": { name: "Twofold Soul", desc: "Two souls share this body, and pain decides which one drives.", hook: "passive", tier: "strong" },
+        "guiding-star": { name: "Guiding Star", desc: "A small star of luck that shines on the whole field side.", hook: "pre-move", tier: "standard" },
+        "heavenbrand": { name: "Heavenbrand", desc: "Its brand burns through every ward a foe can raise.", hook: "system", tier: "strong" },
+        "stormbrand": { name: "Stormbrand", desc: "Its brand is the storm's own signature, and wards do not stop weather.", hook: "system", tier: "strong" },
+        "calm-incense": { name: "Calm Incense", desc: "A calm scent that keeps every nearby mind its own.", hook: "status", tier: "standard" },
+        "petalward": { name: "Petalward", desc: "A drifting veil of petals guards its green kindred.", hook: "status", tier: "standard" },
+        "shifting-palette": { name: "Shifting Palette", desc: "It paints itself the color of the blow it is about to strike.", hook: "pre-move", tier: "strong" },
+        "luxuriant-pelt": { name: "Luxuriant Pelt", desc: "A pelt so thick that fists arrive as compliments.", hook: "dmg-taken", tier: "strong" },
+        "shellward": { name: "Shellward", desc: "A shell proof against anything lobbed, launched, or spat at it.", hook: "dmg-taken", tier: "standard" },
+        "proud-retort": { name: "Proud Retort", desc: "Insult its strength, and its sorcery answers twice as loud.", hook: "status", tier: "strong" },
+        "crushing-jaws": { name: "Crushing Jaws", desc: "Jaws that treat bone as a suggestion.", hook: "dmg-dealt", tier: "standard" },
+        "frostmantle-touch": { name: "Frostmantle Touch", desc: "Its plainest blows carry the killing frost of high places.", hook: "dmg-dealt", tier: "standard" },
+        "honeyveil": { name: "Honeyveil", desc: "A honeyed air in which no one beside it can be made to sleep.", hook: "status", tier: "standard" },
+        "blade-and-aegis-stance": { name: "Blade-and-Aegis Stance", desc: "It is the sword when it strikes and the shield when it schemes.", hook: "pre-move", tier: "strong" },
+        "firstwind": { name: "Firstwind", desc: "Whole and unhurt, it rides the first wind of the battle.", hook: "pre-move", tier: "strong" },
+        "siege-heart": { name: "Siege Heart", desc: "A heart built like a siege engine, tuned for the long shot.", hook: "dmg-dealt", tier: "standard" },
+        "bloomplate": { name: "Bloomplate", desc: "Where the field blooms, its hide turns to armor.", hook: "passive", tier: "standard" },
+        "rending-claws": { name: "Rending Claws", desc: "Every touch it makes is made with intent to tear.", hook: "dmg-dealt", tier: "standard" },
+        "stardust-touch": { name: "Stardust Touch", desc: "Its plainest blows scatter stardust as they land.", hook: "dmg-dealt", tier: "standard" },
+        "tarskin": { name: "Tarskin", desc: "Touch it, and you will not move quickly again soon.", hook: "on-hit", tier: "standard" },
+        "zephyr-touch": { name: "Zephyr Touch", desc: "Its plainest blows ride the high wind down.", hook: "dmg-dealt", tier: "standard" },
+        "twofold-bond": { name: "Twofold Bond", desc: "It fights as two: the blow, and the blow that follows it home.", hook: "dmg-dealt", tier: "apex" },
+        "umbral-aura": { name: "Umbral Aura", desc: "Its presence deepens every shadow on the field.", hook: "field", tier: "strong" },
+        "astral-aura": { name: "Astral Aura", desc: "Its presence brightens every star on the field.", hook: "field", tier: "strong" },
+        "stillpoint-aura": { name: "Stillpoint Aura", desc: "Where it stands, every aura on the field runs backwards.", hook: "field", tier: "standard" },
+        "first-oceans-reign": { name: "First Ocean's Reign", desc: "The first ocean rises with it, and fire itself drowns.", hook: "field", tier: "apex" },
+        "first-suns-reign": { name: "First Sun's Reign", desc: "The first sun rises with it, and water itself boils away.", hook: "field", tier: "apex" },
+        "first-storms-reign": { name: "First Storm's Reign", desc: "The first storm levels every advantage the sky ever gave.", hook: "field", tier: "apex" },
+        "bulwark-growth": { name: "Bulwark Growth", desc: "Every blow it takes is answered with more wall.", hook: "on-hit", tier: "strong" },
+        "cowards-exit": { name: "Coward's Exit", desc: "Hurt past bearing, it is simply \u2014 gone.", hook: "on-hit", tier: "utility" },
+        "sovereigns-exit": { name: "Sovereign's Exit", desc: "It withdraws at the moment of true danger, by ancient right.", hook: "on-hit", tier: "utility" },
+        "tidepack": { name: "Tidepack", desc: "Struck by water, it packs itself denser and harder.", hook: "on-hit", tier: "standard" },
+        "no-mercy-for-the-sick": { name: "No Mercy for the Sick", desc: "It has never once struck a healthy target gently \u2014 or a sick one at all gently.", hook: "dmg-dealt", tier: "standard" },
+        "shellfall-stance": { name: "Shellfall Stance", desc: "Armored while whole; the moment the shell falls, the hunger wakes.", hook: "passive", tier: "strong" },
+        "ambush-creed": { name: "Ambush Creed", desc: "It has been watching the door the whole time you were gone.", hook: "dmg-dealt", tier: "strong" },
+        "bubbleward": { name: "Bubbleward", desc: "A living bubble of water: cool to friends, death to fire.", hook: "dmg-taken", tier: "strong" },
+        "forgeheart": { name: "Forgeheart", desc: "The forge is in its chest, and everything it makes is steel-true.", hook: "dmg-dealt", tier: "standard" },
+        "painflare": { name: "Painflare", desc: "The blow that halves it is the blow that wakes it.", hook: "on-hit", tier: "standard" },
+        "stormglide": { name: "Stormglide", desc: "It does not fight the storm; it rides the storm's own back.", hook: "passive", tier: "standard" },
+        "farhand": { name: "Farhand", desc: "Its reach is longer than its arms, and it never has to touch you.", hook: "dmg-dealt", tier: "utility" },
+        "tidevoice": { name: "Tidevoice", desc: "Its voice comes back as water, always.", hook: "dmg-dealt", tier: "standard" },
+        "mercys-haste": { name: "Mercy's Haste", desc: "Mercy, from it, never arrives late.", hook: "pre-move", tier: "standard" },
+        "galvanic-touch": { name: "Galvanic Touch", desc: "Its plainest blows arrive charged.", hook: "dmg-dealt", tier: "standard" },
+        "voltrider": { name: "Voltrider", desc: "It surfed the first voltfield and never came down.", hook: "passive", tier: "standard" },
+        "one-as-many": { name: "One-as-Many", desc: "Alone it is many; hurt, it is only itself.", hook: "passive", tier: "strong" },
+        "sacrificial-veil": { name: "Sacrificial Veil", desc: "The veil takes the first blow meant for it \u2014 once \u2014 and bills it for the privilege.", hook: "dmg-taken", tier: "strong" },
+        "bond-ascendant": { name: "Bond Ascendant", desc: "A foe falls, and the bond answers with fire in three veins at once.", hook: "ko-dealt", tier: "strong" },
+        "cellswarm-ascendant": { name: "Cellswarm Ascendant", desc: "Hurt past bearing, its scattered cells gather and make it greater.", hook: "on-hit", tier: "apex" },
+        "rustvenom": { name: "Rustvenom", desc: "Its venom rusts through every immunity nature ever issued.", hook: "status", tier: "standard" },
+        "eternal-slumber": { name: "Eternal Slumber", desc: "It dreams, and the dream is load-bearing: it fights from inside it.", hook: "status", tier: "strong" },
+        "regal-decree": { name: "Regal Decree", desc: "No one rushes a queen. No one.", hook: "pre-move", tier: "strong" },
+        "last-tithe": { name: "Last Tithe", desc: "Its final act is arithmetic, and the sum is you.", hook: "ko-fainted", tier: "standard" },
+        "echo-dancer": { name: "Echo Dancer", desc: "It cannot hear a dance and leave it unanswered.", hook: "system", tier: "standard" },
+        "living-battery": { name: "Living Battery", desc: "It is the second heart in every ally's sorcery.", hook: "passive", tier: "standard" },
+        "cloudpelt": { name: "Cloudpelt", desc: "Soft as a cloud to the touch, and just as flammable.", hook: "dmg-taken", tier: "standard" },
+        "blinding-mien": { name: "Blinding Mien", desc: "Look at it and the moment is gone; it has already moved.", hook: "pre-move", tier: "strong" },
+        "soulforge-heart": { name: "Soulforge Heart", desc: "Every fall on the field feeds the forge in its chest.", hook: "ko-fainted", tier: "strong" },
+        "snarlmane": { name: "Snarlmane", desc: "Touch its mane and you will be a while untangling yourself.", hook: "on-hit", tier: "standard" },
+        "inheritor": { name: "Inheritor", desc: "It stands where the fallen stood and takes up what they carried.", hook: "ko-fainted", tier: "standard" },
+        "alchemists-inheritance": { name: "Alchemist's Inheritance", desc: "Nothing the fallen knew is wasted; it transmutes their gift into its own.", hook: "ko-fainted", tier: "standard" },
+        "triumphant-zenith": { name: "Triumphant Zenith", desc: "Every victory raises whichever of its gifts already stands highest.", hook: "ko-dealt", tier: "strong" },
+        "voltfield-herald": { name: "Voltfield Herald", desc: "It arrives, and the ground itself begins to hum.", hook: "field", tier: "strong" },
+        "mindfield-herald": { name: "Mindfield Herald", desc: "It arrives, and the air thickens with thought.", hook: "field", tier: "strong" },
+        "mistfield-herald": { name: "Mistfield Herald", desc: "It arrives walking out of a mist that was not there before.", hook: "field", tier: "strong" },
+        "bloomfield-herald": { name: "Bloomfield Herald", desc: "It arrives, and the field remembers it is alive.", hook: "field", tier: "strong" },
+        "brightforge-body": { name: "Brightforge Body", desc: "Forged in one piece; there is nowhere for a weakness to be inserted.", hook: "status", tier: "strong" },
+        "eclipseshield": { name: "Eclipseshield", desc: "Unhurt, it stands in its own eclipse, and blows arrive diminished.", hook: "dmg-taken", tier: "strong" },
+        "prismforge-armor": { name: "Prismforge Armor", desc: "Armor that splits the worst light into harmless colors.", hook: "dmg-taken", tier: "strong" },
+        "overmind-edge": { name: "Overmind Edge", desc: "It thinks in weaknesses; every true strike lands truer.", hook: "dmg-dealt", tier: "standard" },
+        "firstblade-oath": { name: "Firstblade Oath", desc: "It enters with its blade already sworn and already rising.", hook: "entry", tier: "strong" },
+        "firstwall-oath": { name: "Firstwall Oath", desc: "It enters with its wall already raised.", hook: "entry", tier: "strong" },
+        "shifting-colors": { name: "Shifting Colors", desc: "It becomes the color of its own next blow, every time anew.", hook: "pre-move", tier: "strong" },
+        "cottonfall": { name: "Cottonfall", desc: "Struck, it bursts into drifting fluff that tangles every other limb on the field.", hook: "on-hit", tier: "standard" },
+        "slipstream-wake": { name: "Slipstream Wake", desc: "It cuts its own wake and cannot be drawn off it.", hook: "system", tier: "standard" },
+        "mirrorplate": { name: "Mirrorplate", desc: "What you lower in it, you lower in yourself.", hook: "status", tier: "strong" },
+        "fishers-dividend": { name: "Fisher's Dividend", desc: "It fishes while it fights, and it throws what it catches.", hook: "on-hit", tier: "standard" },
+        "unswerving-wake": { name: "Unswerving Wake", desc: "Its course was set before the battle began and does not bend.", hook: "system", tier: "standard" },
+        "boilerheart": { name: "Boilerheart", desc: "Hit it with fire or water and all you have done is stoke the boiler.", hook: "on-hit", tier: "strong" },
+        "thunderous-verse": { name: "Thunderous Verse", desc: "Its verses hit harder, and everyone else's verses arrive muffled.", hook: "dmg-dealt", tier: "standard" },
+        "tempest-answer": { name: "Tempest Answer", desc: "Every blow against it is answered by the sky itself.", hook: "on-hit", tier: "standard" },
+        "frostscale-veil": { name: "Frostscale Veil", desc: "Scales of rime that halve the force of every sorcery.", hook: "dmg-taken", tier: "strong" },
+        "frostmask": { name: "Frostmask", desc: "A mask of ice takes the first blow for it \u2014 and shatters doing it.", hook: "dmg-taken", tier: "strong" },
+        "empowering-ground": { name: "Empowering Ground", desc: "The ground beside it is simply a better place to fight from.", hook: "passive", tier: "standard" },
+        "fieldmirror": { name: "Fieldmirror", desc: "It takes the color of whatever ground the battle stands on.", hook: "field", tier: "standard" },
+        "veilsweeper": { name: "Veilsweeper", desc: "It enters sweeping, and every veil on the field comes down.", hook: "entry", tier: "standard" },
+        "forge-anthem": { name: "Forge Anthem", desc: "Its anthem makes every allied forge burn steel-true.", hook: "passive", tier: "standard" },
+        "doommark-touch": { name: "Doommark Touch", desc: "Touch it, and both of you are already counting.", hook: "on-hit", tier: "strong" },
+        "spirit-exchange": { name: "Spirit Exchange", desc: "Its gift will not stay with it; it trades with whoever touches it.", hook: "on-hit", tier: "standard" },
+        "single-minded-onslaught": { name: "Single-Minded Onslaught", desc: "Terrible strength, one idea, no revisions.", hook: "passive", tier: "strong" },
+        "null-air": { name: "Null Air", desc: "The air around it is an argument that no gift can survive.", hook: "system", tier: "strong" },
+        "pastel-ward": { name: "Pastel Ward", desc: "A gentle veil under which no venom can find its friends.", hook: "status", tier: "standard" },
+        "sudden-draw": { name: "Sudden Draw", desc: "Sometimes \u2014 unpredictably, unfairly \u2014 it is simply first.", hook: "pre-move", tier: "standard" },
+        "unseen-hand": { name: "Unseen Hand", desc: "Its fists arrive from a direction that guarding does not cover.", hook: "dmg-dealt", tier: "standard" },
+        "shell-tonic": { name: "Shell Tonic", desc: "It carries a tonic in its shell and shares it the moment it arrives.", hook: "entry", tier: "utility" },
+        "overcharge-heart": { name: "Overcharge Heart", desc: "A heart that does not store the charge \u2014 it multiplies it.", hook: "dmg-dealt", tier: "standard" },
+        "starwyrm-maw": { name: "Starwyrm Maw", desc: "A maw that has eaten stars and kept the fire.", hook: "dmg-dealt", tier: "standard" },
+        "winter-toll": { name: "Winter Toll", desc: "A foe falls, and somewhere a cold bell rings for it.", hook: "ko-dealt", tier: "standard" },
+        "dread-toll": { name: "Dread Toll", desc: "A foe falls, and the dark takes its share of the sound.", hook: "ko-dealt", tier: "standard" },
+        "twin-souled-sovereign": { name: "Twin-Souled Sovereign", desc: "Two sovereigns, one silhouette: the rider's dread, the steed's triumph.", hook: "ko-dealt", tier: "apex" },
+        "clinging-perfume": { name: "Clinging Perfume", desc: "Its scent does not leave with it; it leaves with you.", hook: "on-hit", tier: "standard" },
+        "sowsong": { name: "Sowsong", desc: "Struck, it answers by sowing the field with itself.", hook: "on-hit", tier: "standard" },
+        "feverforge": { name: "Feverforge", desc: "Fire only feeds the forge and raises the hammer.", hook: "on-hit", tier: "standard" },
+        "shellwrath": { name: "Shellwrath", desc: "Crack the shell and what is inside stops defending itself entirely.", hook: "on-hit", tier: "standard" },
+        "saltward-body": { name: "Saltward Body", desc: "Salt-pure: no sickness settles, and the dark strikes it softly.", hook: "status", tier: "strong" },
+        "kilnbaked-body": { name: "Kilnbaked Body", desc: "It has already survived the fire. Your fire is a formality.", hook: "dmg-taken", tier: "strong" },
+        "galecrown": { name: "Galecrown", desc: "The wind is not its weather; the wind is its crown.", hook: "dmg-taken", tier: "strong" },
+        "watchdogs-pride": { name: "Watchdog's Pride", desc: "Threaten it and it stands taller; drag it and it does not move.", hook: "entry", tier: "standard" },
+        "quarryheart": { name: "Quarryheart", desc: "It carries the quarry in its chest and throws with all of it.", hook: "dmg-dealt", tier: "standard" },
+        "stormcharge": { name: "Stormcharge", desc: "The wind charges it, and the next bolt spends it all.", hook: "on-hit", tier: "standard" },
+        "hero-unmasked": { name: "Hero Unmasked", desc: "It leaves the field a nobody and returns as the story.", hook: "switch", tier: "strong" },
+        "woundcharge": { name: "Woundcharge", desc: "Pain is just charging, done the slow way.", hook: "on-hit", tier: "standard" },
+        "dawnforge-protocol": { name: "Dawnforge Protocol", desc: "An ancient protocol wakes with the daylight and perfects its best gift.", hook: "passive", tier: "strong" },
+        "voltforge-protocol": { name: "Voltforge Protocol", desc: "A future protocol that wakes on charged ground and perfects its best gift.", hook: "passive", tier: "strong" },
+        "gilded-immunity": { name: "Gilded Immunity", desc: "A body of solid gold, and a will to match: tricks simply do not apply.", hook: "dmg-taken", tier: "strong" },
+        "vessel-of-undoing": { name: "Vessel of Undoing", desc: "The vessel it carries unmakes the sorcery of everyone near it.", hook: "field", tier: "apex" },
+        "sword-of-undoing": { name: "Sword of Undoing", desc: "The sword it carries unmakes the guard of everyone near it.", hook: "field", tier: "apex" },
+        "tablets-of-undoing": { name: "Tablets of Undoing", desc: "The tablets it carries unmake the strength of everyone near it.", hook: "field", tier: "apex" },
+        "beads-of-undoing": { name: "Beads of Undoing", desc: "The beads it carries unmake the ward of everyone near it.", hook: "field", tier: "apex" },
+        "ancient-dawn-pulse": { name: "Ancient Dawn Pulse", desc: "An ancient pulse that brings the dawn and fights beside it.", hook: "field", tier: "apex" },
+        "future-engine": { name: "Future Engine", desc: "A future engine that charges the ground and fights beside it.", hook: "field", tier: "apex" },
+        "mirroring-ambition": { name: "Mirroring Ambition", desc: "It never lets a foe's ambition stand unanswered.", hook: "status", tier: "standard" },
+        "edge-discipline": { name: "Edge Discipline", desc: "It keeps every edge it owns at a razor's discipline.", hook: "dmg-dealt", tier: "standard" },
+        "crown-of-the-fallen": { name: "Crown of the Fallen", desc: "It fights with the strength of everyone who fell before it.", hook: "passive", tier: "strong" },
+        "shared-ledger": { name: "Shared Ledger", desc: "It keeps its allies' accounts as carefully as its own.", hook: "entry", tier: "standard" },
+        "venom-rubble": { name: "Venom Rubble", desc: "What breaks off it stays on the ground, waiting for the next arrival.", hook: "on-hit", tier: "standard" },
+        "veiltail-decree": { name: "Veiltail Decree", desc: "The strange tail thinks first, and its thought is always 'no, not quickly'.", hook: "pre-move", tier: "strong" },
+        "earthfeast": { name: "Earthfeast", desc: "It eats the ground's violence and calls it a meal.", hook: "dmg-taken", tier: "strong" },
+        "patient-spores": { name: "Patient Spores", desc: "Its tricks arrive last and cannot be argued with.", hook: "pre-move", tier: "standard" },
+        "hearthwelcome": { name: "Hearthwelcome", desc: "It enters the way a good host enters: with something for you.", hook: "entry", tier: "standard" },
+        "inward-eye": { name: "Inward Eye", desc: "The eye that looks inward cannot be deceived by outward dodging.", hook: "pre-move", tier: "strong" },
+        "aspect-of-the-masks": { name: "Aspect of the Masks", desc: "A remembered mask blazes, and one gift rises with it.", hook: "entry", tier: "apex" },
+        "chainvenom": { name: "Chainvenom", desc: "Every blow it lands trails a chain of deeper venom.", hook: "dmg-dealt", tier: "strong" },
+        "syrup-haze": { name: "Syrup Haze", desc: "A sickly-sweet haze pours off it, and everyone's aim goes soft.", hook: "entry", tier: "standard" },
+        "prismworld-shell": { name: "Prismworld Shell", desc: "A shell holding every color at once; unbroken, nothing strikes it truly.", hook: "dmg-taken", tier: "apex" },
+        "worldstill": { name: "Worldstill", desc: "When it wakes, weather and ground alike are reduced to zero.", hook: "field", tier: "apex" },
+        "puppeteers-venom": { name: "Puppeteer's Venom", desc: "Its venom does not just sicken the body; it takes the body's strings.", hook: "status", tier: "strong" },
+        "aegis-of-ages": { name: "Aegis of Ages", desc: "Older than the mountains it resembles; sorcery breaks on it like weather.", hook: "dmg-taken", tier: "signature" },
+        "solar-ascendant": { name: "Solar Ascendant", desc: "It rises, and its sorcery rises with it.", hook: "entry", tier: "signature" },
+        "crushing-depths": { name: "Crushing Depths", desc: "The pressure of the deep arrives before it does.", hook: "entry", tier: "signature" },
+        "seismic-heart": { name: "Seismic Heart", desc: "The earth does not serve it; the earth is it.", hook: "dmg-dealt", tier: "signature" },
+        "jet-stream": { name: "Jet Stream", desc: "It enters already moving at the speed of weather.", hook: "entry", tier: "signature" },
+        "dread-twilight": { name: "Dread Twilight", desc: "A twilight that thinks, and what it thinks is dread.", hook: "entry", tier: "signature" },
+        "dawn-radiance": { name: "Dawn Radiance", desc: "Dawn, given a body and a schedule.", hook: "end-of-turn", tier: "signature" },
+        "temporal-sovereignty": { name: "Temporal Sovereignty", desc: "Time does not argue with it, and neither do stat drops.", hook: "status", tier: "signature" },
+        "magma-core": { name: "Magma Core", desc: "A core of the first fire; flame is family, never threat.", hook: "dmg-dealt", tier: "signature" },
+        "permafrost-veil": { name: "Permafrost Veil", desc: "A veil of the first winter lies over it, always.", hook: "dmg-taken", tier: "signature" },
+        "world-roots": { name: "World Roots", desc: "Its roots reach the world's memory, and the world mends what it loves.", hook: "end-of-turn", tier: "signature" },
+        "tempest-wrath": { name: "Tempest Wrath", desc: "The tempest does not strike through it; it strikes as it.", hook: "dmg-dealt", tier: "signature" },
+        "primordial-core": { name: "Primordial Core", desc: "The first stone, still warm from the making.", hook: "entry", tier: "signature" },
+        "soul-tithe": { name: "Soul Tithe", desc: "Every fall it causes is a tithe, and the tithe is power.", hook: "ko-dealt", tier: "signature" },
+        "starlight-surge": { name: "Starlight Surge", desc: "Starlight does not fall on it; it pours from it.", hook: "dmg-dealt", tier: "signature" },
+        "tidal-terror": { name: "Tidal Terror", desc: "The tide goes out in every defender when it surfaces.", hook: "entry", tier: "signature" },
+        "eternal-flame": { name: "Eternal Flame", desc: "Wounded past bearing, the eternal flame stops holding back.", hook: "dmg-dealt", tier: "signature" },
+        "bloom-renewal": { name: "Bloom Renewal", desc: "Every mending it works blooms larger than it should.", hook: "passive", tier: "signature" },
+        "eye-of-the-storm": { name: "Eye of the Storm", desc: "The calm at its center is the most violent place on the field.", hook: "entry", tier: "signature" },
+        "soul-harvest": { name: "Soul Harvest", desc: "It does not waste a fall; every fall is a harvest.", hook: "ko-dealt", tier: "signature" },
+        "architects-decree": { name: "Architect's Decree", desc: "The Architect speaks once, at the door, and the room rearranges itself.", hook: "entry", tier: "signature" },
+        "radiant-plume": { name: "Radiant Plume", desc: "Its plumage keeps a little of the dawn in reserve, always.", hook: "end-of-turn", tier: "signature" },
+        "sovereign-scales": { name: "Sovereign Scales", desc: "Unhurt, it is not merely defended; it is sovereign.", hook: "dmg-taken", tier: "signature" },
+        "calamity-heart": { name: "Calamity Heart", desc: "A calamity with a heartbeat, and the heartbeat is fire.", hook: "dmg-dealt", tier: "signature" },
+        "trench-heart": { name: "Trench Heart", desc: "A trench with a heartbeat, and the heartbeat is tide.", hook: "dmg-dealt", tier: "signature" },
+        "sylvan-heart": { name: "Sylvan Heart", desc: "A forest with a heartbeat, and the heartbeat is green.", hook: "dmg-dealt", tier: "signature" },
+        "plasma-barbs": { name: "Plasma Barbs", desc: "Its barbs answer touch with a crackle that slows the blood.", hook: "on-hit", tier: "signature" },
+        "raptors-regard": { name: "Raptor's Regard", desc: "A raptor's regard: measured once, never wrong, never shaken.", hook: "pre-move", tier: "signature" },
+        "iron-pincer": { name: "Iron Pincer", desc: "The pincer does not squeeze; it concludes.", hook: "dmg-dealt", tier: "signature" },
+        "toxic-tide": { name: "Toxic Tide", desc: "Its tide comes in poisoned, every time, on purpose.", hook: "status", tier: "signature" },
+        "storm-bloom": { name: "Storm Bloom", desc: "Where it blooms, the wind itself flowers open.", hook: "dmg-dealt", tier: "signature" },
+        "shadow-beak": { name: "Shadow Beak", desc: "A beak that strikes from the shadow side of the light.", hook: "dmg-dealt", tier: "signature" },
+        "frost-mane": { name: "Frost Mane", desc: "A mane of living frost; fire cannot take hold in it.", hook: "status", tier: "signature" },
+    };
+
+
+    S21.abilityName = function (id) { const e = S21.ABILITY_LIB[id]; return e ? e.name : id; };
+    S21.abilityDesc = function (id) { const e = S21.ABILITY_LIB[id]; return e ? e.desc : ""; };
+
+    // ------------------------------------------------------------- banner
+    S21.banners = [];
+    S21.banner = function (b, abilityId) {
+        if (!b || !abilityId) return;
+        S21.banners.push({ battler: name(b), ability: abilityId });
+        S21.log("\\C[14]" + name(b) + "'s " + S21.abilityName(abilityId) + "\\C[0]");
+        const st = S21.store(b);
+        st.misc.bannerShown = st.misc.bannerShown || {};
+        st.misc.bannerShown[abilityId] = true;
+    };
+    function bannerOnce(b, abilityId) {
+        const st = S21.store(b);
+        st.misc.bannerShown = st.misc.bannerShown || {};
+        if (!st.misc.bannerShown[abilityId]) S21.banner(b, abilityId);
+    }
+
+    // ---------------------------------------------- suppression + registry
+    // abilityOf (Part A) already honors _s21AbilityOverride (the copy/swap
+    // registry's storage). abilityActive adds Null Air suppression: while a
+    // Null Air bearer stands, every OTHER battler's ability is inert.
+    S21.abilityActive = function (b) {
+        if (!b) return null;
+        const mine = S21.abilityOf(b);
+        if (!mine) return null;
+        if (inBattle() && S21.isGanjukoBattler(b)) {
+            try {
+                for (const o of S21.allStanding()) {
+                    if (o !== b && S21.abilityOf(o) === "null-air") return null;
+                }
+            } catch (e) {}
+        }
+        return mine;
+    };
+    const activeIs = (b, id) => S21.abilityActive(b) === id;
+    S21.activeIs = activeIs;
+    function anyStandingWith(id, side) {
+        return S21.allStanding().some(o => (!side || S21.sideOf(o) === side) && activeIs(o, id));
+    }
+    S21.anyStandingWith = anyStandingWith;
+
+    // ------------------------------------------------------------ field
+    // Sky: Day / Night / Tempest (default from the overworld clock).
+    // Aura: Volt / Astral / Mist / Bloom for 5 turns from a Herald entry.
+    S21.field = null;
+    function defaultSky() {
+        try {
+            const h = new Date().getHours();
+            return (h >= 20 || h < 5) ? "Night" : "Day";
+        } catch (e) { return "Day"; }
+    }
+    S21.initField = function () {
+        S21.field = { sky: defaultSky(), aura: null, auraTurns: 0,
+                      hazards: { actor: 0, enemy: 0 } };
+        return S21.field;
+    };
+    function field() { return S21.field || S21.initField(); }
+    function skyNullified() {
+        return anyStandingWith("clearsky-mind") || anyStandingWith("stilled-heavens") || anyStandingWith("worldstill");
+    }
+    S21.skyNow = function () { return field().sky; };
+    S21.skyActive = function () { return skyNullified() ? null : field().sky; };
+    S21.auraNow = function () { return field().aura; };
+    S21.auraActive = function () {
+        if (skyNullified()) return null;
+        if (anyStandingWith("worldstill")) return null;
+        return field().aura;
+    };
+    S21.setSky = function (sky, source) {
+        const f = field();
+        if (f.sky !== sky) {
+            f.sky = sky;
+            S21.log("The sky turned to " + sky + "!");
+            // Frostmask restores when the Sky becomes Tempest.
+            for (const b of S21.allStanding()) {
+                if (sky === "Tempest" && activeIs(b, "frostmask")) S21.store(b).misc.shieldReady = true;
+            }
+        }
+    };
+    S21.setAura = function (aura, turns) {
+        const f = field();
+        f.aura = aura;
+        f.auraTurns = turns || 5;
+        if (aura) S21.log("A " + aura + " aura covered the field!");
+    };
+    S21.fieldTick = function () {
+        const f = field();
+        if (f.aura && f.auraTurns > 0) {
+            f.auraTurns--;
+            if (f.auraTurns <= 0) { f.aura = null; S21.log("The aura faded."); }
+        }
+    };
+    S21.grounded = function (b) {
+        if (!b) return false;
+        if (S21.effectiveTypes(b).includes(7)) return false; // Wind
+        if (activeIs(b, "skyborne")) return false;
+        return true;
+    };
+
+    // -------------------------------------------------- effective types
+    const _s21BaseTypes = S21.effectiveTypes;
+    S21.effectiveTypes = function (b) {
+        const st = b && b._ganjukoStages ? b._ganjukoStages : null;
+        const ov = st && st.misc ? st.misc.typeOverride : null;
+        if (ov && ov.length) return ov.slice();
+        const ab = S21.abilityActive(b);
+        if (ab === "skyward-guise") {
+            const sky = S21.skyActive();
+            if (sky === "Day") return [2];
+            if (sky === "Night") return [3];
+            if (sky === "Tempest") return [7];
+        }
+        if (ab === "fieldmirror") {
+            const aura = S21.auraActive();
+            if (aura === "Volt") return [5];
+            if (aura === "Astral") return [9];
+            if (aura === "Mist") return [3];
+            if (aura === "Bloom") return [4];
+        }
+        return _s21BaseTypes(b);
+    };
+
+    // ------------------------------------------------------- move facts
+    const _tagCache = {};
+    S21.skillTags = function (item) {
+        if (!item) return [];
+        if (_tagCache[item.id]) return _tagCache[item.id];
+        let tags = [];
+        const m = /<tags:\s*([^>]+)>/.exec(item.note || "");
+        if (m) tags = m[1].trim().split(/\s+/);
+        _tagCache[item.id] = tags;
+        return tags;
+    };
+    S21.skillPow = function (item) {
+        if (!item || !item.damage || !item.damage.formula) return 0;
+        const m = /a\.(?:atk|mat)\s*\*\s*([0-9.]+)/.exec(item.damage.formula);
+        return m ? Math.round(parseFloat(m[1]) * 100) : 0;
+    };
+    S21.isContact = function (item, subject) {
+        if (!item || !item.damage || item.damage.type === 0) return false;
+        if (subject && activeIs(subject, "farhand")) return false;
+        return item.hitType === 1; // physical category = contact (documented rule)
+    };
+    function chartRate(elementId, target) {
+        try {
+            const sp = target.ganjukoSpecies();
+            return GE.typeEffectiveness(elementId, sp);
+        } catch (e) { return 1; }
+    }
+    S21.chartRate = chartRate;
+    function effRateVsEffective(elementId, target) {
+        // Chart against the target's EFFECTIVE types (post type-changes).
+        const types = S21.effectiveTypes(target);
+        let rate = 1;
+        const chart = GE.GANJUKO_TYPE_CHART || {};
+        for (const t of types) {
+            const row = chart[elementId] || {};
+            const r = row[t];
+            rate *= (typeof r === "number") ? r : 1;
+        }
+        return rate;
+    }
+    function turnNow() {
+        try {
+            if (typeof $gameTroop !== "undefined" && $gameTroop && typeof $gameTroop.turnCount === "function") return $gameTroop.turnCount();
+        } catch (e) {}
+        return 0;
+    }
+    S21.turnNow = turnNow;
+    function healOf(b, frac) { return Math.max(1, Math.floor(b.mhp * frac)); }
+    S21.healAmount = function (b, amount) {
+        // Bloom Renewal (healing performed x1.5) is applied by callers that
+        // know the healer; this helper covers self-heals.
+        return amount;
+    };
+    function cureMajor(b) {
+        const cur = S21.majorStatusOf(b);
+        if (cur && typeof b.removeState === "function") { b.removeState(cur); return cur; }
+        return 0;
+    }
+    S21.cureMajor = cureMajor;
+
+    // ------------------------------------------------ status immunities
+    const ABILITY_STATUS_IMMUNE = {
+        "suppleframe": [12], "antivenin": [4, 31], "tideveil": [11],
+        "frost-mane": [11], "feverforge": [11], "magmashell": [14],
+        "sleepless-vigil": [10], "undying-spark": [10], "own-cadence": [8],
+        "magma-core": [11]
+    };
+    S21.abilityImmuneTo = function (target, stateId, skill, user) {
+        const ab = S21.abilityActive(target);
+        if (!ab) return false;
+        // Wardbreaker class: the user's moves ignore the target's ability.
+        if (user && user !== target && ["wardbreaker", "heavenbrand", "stormbrand"].includes(S21.abilityActive(user))) return false;
+        const imp = implOf(target);
+        if (imp) {
+            if (imp.immuneAll) return true;
+            if (Array.isArray(imp.immune) && imp.immune.includes(stateId)) return true;
+        }
+        const table = ABILITY_STATUS_IMMUNE[ab];
+        if (table && table.includes(stateId)) return true;
+        if (ab === "saltward-body") return true; // cannot gain any status
+        if (ab === "canopy-ward" && S21.skyActive() === "Day") return true;
+        if (ab === "eternal-slumber") return true; // its slot is permanently occupied
+        if (skill && S21.POWDER_SKILLS[skill.id] && ab === "stormproof-coat") return true;
+        // Ally-scope veils (doubles-aware; in singles they cover the self).
+        const allies = [target].concat(S21.alliesOf(target));
+        for (const a of allies) {
+            const aAb = S21.abilityActive(a);
+            if (aAb === "petalward" && S21.effectiveTypes(target).includes(4)) return true;
+            if (aAb === "honeyveil" && stateId === 10) return true;
+            if (aAb === "pastel-ward" && (stateId === 4 || stateId === 31)) return true;
+        }
+        return false;
+    };
+    S21.fieldImmuneTo = function (target, stateId) {
+        const aura = S21.auraActive();
+        if (!aura) return false;
+        if (aura === "Volt" && stateId === 10) return true; // no battler can fall asleep
+        if (aura === "Mist" && S21.grounded(target)) return true;
+        return false;
+    };
+    S21.riderChanceMult = function (subject, item, stateId) {
+        let m = 1;
+        if (subject && activeIs(subject, "fortunes-smile")) m *= 2;
+        return m;
+    };
+    S21.riderBlocked = function (subject, target, item) {
+        if (!item || !item.damage || item.damage.type === 0) return false; // pure status moves unaffected
+        if (target && activeIs(target, "warding-dust")) return true;
+        if (subject && activeIs(subject, "brute-clarity")) return true;
+        if (target && activeIs(target, "stormproof-coat") && S21.skillTags(item).includes("powder")) return true;
+        return false;
+    };
+    // Shared Burden + Puppeteer's Venom ride Part A's application hook.
+    S21.onStatusApplied.push(function (user, target, stateId, skill) {
+        if (!user || !target || user === target) return;
+        const tAb = S21.abilityActive(target);
+        if (tAb === "shared-burden" && [11, 12, 4, 31].includes(stateId) &&
+            S21.sideOf(user) !== S21.sideOf(target)) {
+            const back = S21.applyStatus(target, user, stateId, skill);
+            if (back.ok) S21.banner(target, "shared-burden");
+        }
+        if (S21.abilityActive(user) === "puppeteers-venom" && (stateId === 4 || stateId === 31)) {
+            const c = S21.applyStatus(user, target, 8, skill);
+            if (c.ok) S21.banner(user, "puppeteers-venom");
+        }
+    });
+
+    // ------------------------------------------------------ damage dealt
+    function auraBoostMult(elementId) {
+        // Field auras boost EVERY battler's matching moves; Stillpoint Aura
+        // reverses aura effects (boosts become 0.75).
+        const aura = S21.auraActive();
+        let m = 1;
+        if (aura === "Volt" && elementId === 5) m = 1.3;
+        if (aura === "Astral" && elementId === 9) m = 1.3;
+        if (aura === "Mist" && elementId === 9) m = 0.5;
+        if (aura === "Bloom" && elementId === 4) m = 1.3;
+        if (m > 1 && anyStandingWith("stillpoint-aura")) m = 0.75; // Aura Break: boosts reverse to 0.75; penalties stand
+        if (m === 1) {
+            // Ability auras (Umbral / Astral) are field-wide too.
+            if (elementId === 8 && anyStandingWith("umbral-aura")) m = anyStandingWith("stillpoint-aura") ? 0.75 : 1.33;
+            if (elementId === 9 && anyStandingWith("astral-aura")) m = anyStandingWith("stillpoint-aura") ? 0.75 : 1.33;
+        }
+        return m;
+    }
+    function condOk(cond, ctx, bearer) {
+        if (!cond) return true;
+        // HP/status conditions read the BEARER (subject for dealt rules,
+        // target for taken rules); move conditions read the ctx.
+        const self = bearer || ctx.subject;
+        switch (cond) {
+            case "pinch": return self.hp * 3 <= self.mhp;
+            case "fullhp": return self.hp >= self.mhp;
+            case "halfOrBelow": return self.hp * 2 <= self.mhp;
+            case "aboveHalf": return self.hp * 2 > self.mhp;
+            case "se": return ctx.effRate > 1;
+            case "nve": return ctx.effRate < 1 && ctx.effRate > 0;
+            case "crit": return !!ctx.critical;
+            case "contact": return !!ctx.contact;
+            case "statused": return S21.majorStatusOf(self) > 0;
+            case "doubles": return S21.alliesOf(ctx.subject).length >= 1;
+            default:
+                if (cond.startsWith("sky:")) return S21.skyActive() === cond.slice(4);
+                if (cond.startsWith("aura:")) return S21.auraActive() === cond.slice(5);
+                return true;
+        }
+    }
+    function evalMultList(list, ctx, bearer) {
+        let m = 1;
+        if (!Array.isArray(list)) return m;
+        for (const rule of list) {
+            if (rule.el !== undefined && rule.el !== ctx.element) continue;
+            if (rule.cat !== undefined && rule.cat !== ctx.category) continue;
+            if (rule.tag !== undefined && !ctx.tags.includes(rule.tag)) continue;
+            if (rule.powLE !== undefined && !(ctx.pow > 0 && ctx.pow <= rule.powLE)) continue;
+            if (rule.recoilMove !== undefined && !!S21.RECOIL[ctx.item.id] !== rule.recoilMove) continue;
+            if (!condOk(rule.if, ctx, bearer)) continue;
+            m *= rule.m;
+            if (bearer) bannerOnce(bearer, S21.abilityActive(bearer));
+        }
+        return m;
+    }
+    function buildCtx(subject, target, item, value, critical) {
+        const element = item && item.damage ? (item.damage.elementId || 1) : 1;
+        return {
+            subject, target, item, value, critical,
+            element,
+            category: item ? item.hitType : 0,
+            tags: S21.skillTags(item),
+            pow: S21.skillPow(item),
+            contact: S21.isContact(item, subject),
+            effRate: target ? effRateVsEffective(element, target) : 1
+        };
+    }
+    // Type-conversion touches + STAB / chart correction: the inner chain
+    // priced the move with its DATA element and the species' printed
+    // types. Conversions (and defender type-changes) re-price here.
+    function conversionElement(subject, item, element) {
+        const ab = S21.abilityActive(subject);
+        if (!ab || !item || !item.damage || item.damage.type === 0) return element;
+        const tags = S21.skillTags(item);
+        if (ab === "plainchant") return 1;
+        if (element === 1) {
+            if (ab === "frostmantle-touch") return 3;
+            if (ab === "stardust-touch") return 9;
+            if (ab === "zephyr-touch") return 7;
+            if (ab === "galvanic-touch") return 5;
+        }
+        if (ab === "tidevoice" && tags.includes("sound")) return 3;
+        return element;
+    }
+    S21.modifyDamageDealt = function (subject, target, item, value, critical) {
+        if (!subject || !item || !target) return value;
+        const ctx = buildCtx(subject, target, item, value, critical);
+        // Reign nullifications are field rules, not target abilities.
+        if (anyStandingWith("first-oceans-reign") && ctx.element === 2) return 0;
+        if (anyStandingWith("first-suns-reign") && ctx.element === 3) return 0;
+        let m = 1;
+        // Conversion: re-price chart + STAB against the converted element.
+        const convEl = conversionElement(subject, item, ctx.element);
+        if (convEl !== ctx.element) {
+            const before = chartRate(ctx.element, target);
+            const after = effRateVsEffective(convEl, target);
+            if (before > 0 && value > 0) m *= after / before;
+            const subjTypes = S21.effectiveTypes(subject);
+            const wasStab = subjTypes.includes(ctx.element);
+            const isStab = subjTypes.includes(convEl);
+            if (isStab && !wasStab) m *= 1.5;
+            if (wasStab && !isStab) m /= 1.5;
+            ctx.element = convEl;
+            ctx.effRate = after;
+            if (S21.abilityActive(subject) !== "tidevoice") m *= 1.2; // -ate family boost
+            bannerOnce(subject, S21.abilityActive(subject));
+        }
+        // Defender type-changes (Prismflesh etc.): correct the chart leg.
+        if (value > 0) {
+            const speciesRate = chartRate(ctx.element, target);
+            if (speciesRate > 0 && Math.abs(speciesRate - ctx.effRate) > 1e-9) m *= ctx.effRate / speciesRate;
+        }
+        m *= auraBoostMult(ctx.element);
+        // Forge Anthem: bearer + allies' Earth moves x1.5.
+        if (ctx.element === 6 && S21.standingOf(subject).some(a => activeIs(a, "forge-anthem"))) m *= 1.5;
+        // Ally batteries (doubles): Living Battery (special x1.3),
+        // Empowering Ground (all x1.3) — the BEARER boosts its allies.
+        if (ctx.category === 2 && S21.alliesOf(subject).some(a => activeIs(a, "living-battery"))) m *= 1.3;
+        if (S21.alliesOf(subject).some(a => activeIs(a, "empowering-ground"))) m *= 1.3;
+        const imp = implOf(subject);
+        if (imp) {
+            m *= evalMultList(imp.dealt, ctx, subject);
+            if (typeof imp.dealtFn === "function") { const r = imp.dealtFn(ctx, S21); if (typeof r === "number") m *= r; }
+        }
+        const sAb = S21.abilityActive(subject);
+        // Charge flags (Stormcharge / Woundcharge): next Volt move x2.
+        if (ctx.element === 5 && S21.store(subject).misc.charge) {
+            S21.store(subject).misc.charge = false;
+            m *= 2;
+            S21.log(name(subject) + " unleashed its charge!");
+        }
+        // Kindled Core: once kindled, own Fire moves x1.5.
+        if (ctx.element === 2 && sAb === "kindled-core" && S21.store(subject).misc.kindled) m *= 1.5;
+        // True Affinity: STAB 1.5 -> 2.0.
+        if (sAb === "true-affinity" && S21.effectiveTypes(subject).includes(ctx.element)) m *= 2 / 1.5;
+        // Deadeye Creed: crits deal an extra x1.5 (1.5 -> 2.25 total).
+        if (critical && sAb === "deadeye-creed") m *= 1.5;
+        // Prism Lens: not-very-effective hits double (0.5 lands as 1.0).
+        if (sAb === "prism-lens" && ctx.effRate > 0 && ctx.effRate < 1) m *= 2;
+        // Overmind Edge: super-effective hits x1.25 more.
+        if (sAb === "overmind-edge" && ctx.effRate > 1) m *= 1.25;
+        // Lastword Mind: acting last (lowest effective AGI standing) x1.3.
+        if (sAb === "lastword-mind") {
+            const speeds = S21.allStanding().filter(x => x && typeof x.isAlive === "function" && x.isAlive())
+                .map(x => (typeof x.agi === "number" ? x.agi : 0));
+            if (speeds.length && (typeof subject.agi === "number" ? subject.agi : 0) <= Math.min.apply(null, speeds)) m *= 1.3;
+        }
+        // Ambush Creed: x2 vs a target that switched in this turn.
+        if (sAb === "ambush-creed" && target) {
+            const ts = S21.store(target);
+            if (ts.misc.enteredTurn === turnNow() && !ts.misc.leadEntry) { m *= 2; bannerOnce(subject, sAb); }
+        }
+        // First Storm's Reign: Wind battlers have no weaknesses.
+        if (ctx.effRate > 1 && S21.effectiveTypes(target).includes(7) && anyStandingWith("first-storms-reign")) {
+            m *= 1 / ctx.effRate;
+        }
+        return Math.floor(value * m);
+    };
+
+    // ------------------------------------------------------ damage taken
+    S21.modifyDamageTaken = function (target, subject, item, value, critical) {
+        if (!target || !item || !subject) return value;
+        // Wardbreaker class: the attacker's moves ignore the target's
+        // ability entirely (field rules above still applied on the dealt
+        // side; ally-guardian reduction below is an ALLY ability and stays).
+        const breaker = ["wardbreaker", "heavenbrand", "stormbrand"].includes(S21.abilityActive(subject));
+        const ctx = buildCtx(subject, target, item, value, critical);
+        ctx.element = conversionElement(subject, item, ctx.element);
+        let m = 1;
+        const tAb = S21.abilityActive(target);
+        const tst = S21.store(target);
+        if (!breaker && tAb) {
+            // Absorbs and nullifications (heals/stages resolve via pending
+            // flags in the executeHpDamage wrap, which runs after).
+            const absorb = (AB, el, kind, frac) => {
+                if (tAb === AB && ctx.element === el) {
+                    tst.misc.pendingAbsorb = { kind, frac: frac || 0.25, ability: AB };
+                    return true;
+                }
+                return false;
+            };
+            if (absorb("stormcell", 5, "heal")) return 0;
+            if (absorb("deepwell", 3, "heal")) return 0;
+            if (absorb("earthfeast", 6, "heal")) return 0;
+            if (absorb("kindled-core", 2, "kindle")) return 0;
+            if (absorb("galvengine", 5, "stageAgi")) return 0;
+            if (absorb("galvanic-spire", 5, "stageMat")) return 0;
+            if (absorb("maelstrom-call", 3, "stageMat")) return 0;
+            if (absorb("thornfeast", 4, "stageAtk")) return 0;
+            if (absorb("kilnbaked-body", 2, "stageDef2")) return 0;
+            if (absorb("galecrown", 7, "stageAtk")) return 0;
+            if (tAb === "skyborne" && ctx.element === 6) return 0;
+            if (tAb === "hushfield" && ctx.tags.includes("sound")) { bannerOnce(target, tAb); return 0; }
+            if (tAb === "shellward" && ctx.tags.includes("ballistic")) { bannerOnce(target, tAb); return 0; }
+            if (tAb === "ninefold-ward" && ctx.effRate <= 1) { bannerOnce(target, tAb); return 0; }
+            // One-time shields.
+            if (tAb === "sacrificial-veil" && tst.misc.shieldReady !== false) {
+                tst.misc.shieldReady = false;
+                tst.misc.pendingShieldLoss = 1 / 8;
+                S21.banner(target, tAb);
+                return 0;
+            }
+            if (tAb === "frostmask" && ctx.category === 1 && tst.misc.shieldReady !== false) {
+                tst.misc.shieldReady = false;
+                S21.banner(target, tAb);
+                return 0;
+            }
+            // Last Rampart (Sturdy): survive a would-be KO from full HP.
+            if (tAb === "last-rampart" && target.hp >= target.mhp && value >= target.hp) {
+                S21.banner(target, tAb);
+                return Math.max(0, target.hp - 1);
+            }
+            const imp = implOf(target);
+            if (imp) {
+                m *= evalMultList(imp.taken, ctx, target);
+                if (typeof imp.takenFn === "function") { const r = imp.takenFn(ctx, S21); if (typeof r === "number") m *= r; }
+            }
+        }
+        // Guardian Stance: an ally's presence reduces damage to this
+        // battler in doubles (ally ability — not negated by Wardbreaker).
+        if (S21.alliesOf(target).some(a => activeIs(a, "guardian-stance"))) m *= 0.75;
+        // Kindred Sense: no damage from allies' spread (multi-target) moves.
+        if (S21.sideOf(subject) === S21.sideOf(target) && subject !== target &&
+            tAb === "kindred-sense" && item.scope && item.scope !== 1) m = 0;
+        return Math.floor(value * m);
+    };
+
+    // ------------------------------------------- on-hit reaction queue
+    function applyChip(attacker, amount, sourceName) {
+        if (!attacker || amount <= 0) return;
+        if (activeIs(attacker, "hexward-body")) return; // Magic Guard: no indirect damage
+        try { attacker.gainHp(-amount); } catch (e) {}
+    }
+    S21.chipDamage = applyChip;
+    S21.fireOnHit = function (subject, target, item, damageDealt) {
+        if (!subject || !target || !item) return;
+        const tst = S21.store(target);
+        const sst = S21.store(subject);
+        // Defender's disguise breaks on damage.
+        if (tst.misc.disguiseSpeciesId && damageDealt > 0) {
+            delete tst.misc.disguiseSpeciesId;
+            S21.log(name(target) + "'s disguise was broken!");
+        }
+        // Fisher's Dividend: a carrying defender counters the attacker.
+        if (tst.misc.hasCatch && damageDealt > 0 && typeof subject.isAlive === "function" && subject.isAlive()) {
+            tst.misc.hasCatch = false;
+            S21.banner(target, "fishers-dividend");
+            applyChip(subject, Math.max(1, Math.floor(subject.mhp * 0.20)));
+        }
+        const tAb = S21.abilityActive(target);
+        const breaker = ["wardbreaker", "heavenbrand", "stormbrand"].includes(S21.abilityActive(subject));
+        const contact = S21.isContact(item, subject);
+        const element = item.damage ? (item.damage.elementId || 1) : 1;
+        const wasAboveHalf = tst.misc.hpBeforeHit !== undefined ? tst.misc.hpBeforeHit * 2 > target.mhp : target.hp * 2 > target.mhp;
+        const nowBelowHalf = target.hp * 2 <= target.mhp;
+        const crossedHalf = wasAboveHalf && nowBelowHalf && typeof target.isAlive === "function" && target.isAlive();
+        if (!breaker && tAb && typeof target.isAlive === "function" && (target.isAlive() || tAb === "ashes-toll" || tAb === "last-tithe")) {
+            const imp = implOf(target);
+            if (imp && typeof imp.onHitFn === "function") {
+                try { imp.onHitFn({ subject, target, item, damageDealt, contact, element, crossedHalf }, S21); } catch (e) {}
+            }
+            // Contact status family (30%): through the status gate, so the
+            // attacker's own immunities (incl. Earth vs poison) apply.
+            const contactStatus = { "sparksnare": 12, "venomspine": 4, "cinderhide": 11 };
+            if (contact && contactStatus[tAb] && brChance(0.30)) {
+                if (S21.applyStatus(target, subject, contactStatus[tAb], item).ok) S21.banner(target, tAb);
+            }
+            if (contact && tAb === "dreamspore" && brChance(0.30)) {
+                const pick = [4, 12, 10][Math.floor(br() * 3)];
+                if (S21.applyStatus(target, subject, pick, item).ok) S21.banner(target, tAb);
+            }
+            if (contact && (tAb === "shardhide" || tAb === "barbhide")) {
+                applyChip(subject, Math.max(1, Math.floor(subject.mhp / 8)));
+                bannerOnce(target, tAb);
+            }
+            if (contact && (tAb === "tarskin" || tAb === "snarlmane")) {
+                S21.applyStageChange(subject, "agi", -1, target, {});
+                bannerOnce(target, tAb);
+            }
+            if (contact && tAb === "plague-touch") {
+                subject._s21AbilityOverride = "plague-touch";
+                S21.banner(target, tAb);
+                S21.log(name(subject) + "'s ability became Plague Touch!");
+            }
+            if (contact && tAb === "clinging-perfume") {
+                subject._s21AbilityOverride = "clinging-perfume";
+                S21.banner(target, tAb);
+                S21.log(name(subject) + "'s ability became Clinging Perfume!");
+            }
+            if (contact && tAb === "spirit-exchange") {
+                const mine = S21.abilityOf(target), theirs = S21.abilityOf(subject);
+                subject._s21AbilityOverride = mine;
+                target._s21AbilityOverride = theirs;
+                S21.banner(target, tAb);
+                S21.log(name(target) + " and " + name(subject) + " swapped abilities!");
+            }
+            if (contact && tAb === "doommark-touch" && typeof subject.isAlive === "function" && subject.isAlive()) {
+                tst.misc.doomTurns = 3;
+                S21.store(subject).misc.doomTurns = 3;
+                S21.banner(target, tAb);
+                S21.log("A doom mark settled on both battlers!");
+            }
+            if (tAb === "wrathpoint" && tst.misc.lastHitCrit) {
+                const cur = tst.atk;
+                S21.applyStageChange(target, "atk", 6 - cur, null, { ignoreProtect: true, noDouble: true, noReverse: true });
+                S21.banner(target, tAb);
+            }
+            if (tAb === "fracture-plate" && ctx_category(item) === 1) {
+                S21.applyStageChange(target, "def", -1, null, { selfInflicted: true });
+                S21.applyStageChange(target, "agi", 2, null, { selfInflicted: true });
+                bannerOnce(target, tAb);
+            }
+            if (tAb === "bulwark-growth") { S21.applyStageChange(target, "def", 1, null, {}); bannerOnce(target, tAb); }
+            if (tAb === "tidepack" && element === 3) S21.applyStageChange(target, "def", 2, null, {});
+            if (tAb === "boilerheart" && (element === 2 || element === 3)) { S21.applyStageChange(target, "agi", 3, null, {}); bannerOnce(target, tAb); }
+            if (tAb === "stormcharge" && element === 7) { tst.misc.charge = true; S21.log(name(target) + " became charged!"); }
+            if (tAb === "woundcharge") { tst.misc.charge = true; S21.log(name(target) + " became charged!"); }
+            if (tAb === "feverforge" && element === 2) S21.applyStageChange(target, "atk", 1, null, {});
+            if (tAb === "retribution" && element === 8) S21.applyStageChange(target, "atk", 1, null, {});
+            if (tAb === "startle-reflex" && [8, 9, 4].includes(element)) S21.applyStageChange(target, "agi", 1, null, {});
+            if (tAb === "prismflesh") { tst.misc.typeOverride = [element]; S21.log(name(target) + "'s type changed!"); }
+            if (tAb === "hexed-husk" && brChance(0.30) && item.id) {
+                S21.store(subject).misc.disabled = S21.store(subject).misc.disabled || {};
+                S21.store(subject).misc.disabled[item.id] = 4;
+                S21.banner(target, tAb);
+                S21.log(name(subject) + "'s " + item.name + " was disabled!");
+            }
+            if (tAb === "venom-rubble" && ctx_category(item) === 1) {
+                const side = S21.sideOf(subject);
+                const f = field();
+                if (f.hazards[side] < 2) {
+                    f.hazards[side]++;
+                    S21.banner(target, tAb);
+                    S21.log("Venom was scattered on " + name(subject) + "'s side!");
+                }
+            }
+            if (tAb === "tempest-answer") S21.setSky("Tempest", target);
+            if (tAb === "sowsong") S21.setAura("Bloom", 5);
+            if (crossedHalf && tAb === "painflare") S21.applyStageChange(target, "mat", 1, null, {});
+            if (crossedHalf && tAb === "shellwrath") {
+                S21.applyStageChange(target, "def", -1, null, { selfInflicted: true });
+                S21.applyStageChange(target, "mdf", -1, null, { selfInflicted: true });
+                S21.applyStageChange(target, "atk", 1, null, {});
+                S21.applyStageChange(target, "mat", 1, null, {});
+                S21.applyStageChange(target, "agi", 1, null, {});
+                S21.banner(target, tAb);
+            }
+            if (crossedHalf && tAb === "cellswarm-ascendant" && !tst.misc.ascended) {
+                tst.misc.ascended = true;
+                S21.applyStageChange(target, "def", 1, null, {});
+                S21.applyStageChange(target, "mdf", 1, null, {});
+                try { target.gainHp(healOf(target, 0.25)); } catch (e) {}
+                S21.banner(target, tAb);
+            }
+            if (crossedHalf && (tAb === "cowards-exit" || tAb === "sovereigns-exit")) {
+                tst.misc.exitWanted = true;
+            }
+        }
+        // Attacker-side on-hit riders.
+        const sAb = S21.abilityActive(subject);
+        if (sAb && typeof subject.isAlive === "function" && subject.isAlive() &&
+            typeof target.isAlive === "function" && target.isAlive()) {
+            if (contact && sAb === "venomtouch" && brChance(0.30)) {
+                if (S21.applyStatus(subject, target, 4, item).ok) S21.banner(subject, sAb);
+            }
+            if (sAb === "chainvenom" && brChance(0.30)) {
+                if (S21.applyStatus(subject, target, 31, item).ok) S21.banner(subject, sAb);
+            }
+            if (sAb === "toxic-tide" && brChance(0.10)) {
+                if (S21.applyStatus(subject, target, 4, item).ok) bannerOnce(subject, sAb);
+            }
+            if (sAb === "musk-haze" && brChance(0.10) && !S21.riderBlocked(subject, target, item)) {
+                if (activeIs(target, "stillpoint")) { /* Stillpoint cannot flinch */ }
+                else S21.store(target).flinch = true;
+            }
+        }
+    };
+    function ctx_category(item) { return item ? item.hitType : 0; }
+
+    if (typeof Game_Action !== "undefined" && Game_Action.prototype &&
+        typeof Game_Action.prototype.executeHpDamage === "function") {
+        const _s21B_EHD = Game_Action.prototype.executeHpDamage;
+        Game_Action.prototype.executeHpDamage = function (target, value) {
+            const subject = (typeof this.subject === "function") ? this.subject() : null;
+            const item = (typeof this.item === "function") ? this.item() : null;
+            let hpBefore = null, critFlag = false;
+            try {
+                if (target && S21.isGanjukoBattler(target)) {
+                    const tst = S21.store(target);
+                    tst.misc.hpBeforeHit = target.hp;
+                    try { critFlag = !!(target.result && target.result().critical); } catch (e) {}
+                    tst.misc.lastHitCrit = critFlag;
+                    hpBefore = target.hp;
+                }
+            } catch (e) {}
+            _s21B_EHD.call(this, target, value);
+            try {
+                if (!target || !S21.isGanjukoBattler(target) || !inBattle()) return;
+                const tst = S21.store(target);
+                // Pending absorb / shield consequences from the taken pass.
+                if (tst.misc.pendingAbsorb) {
+                    const pa = tst.misc.pendingAbsorb;
+                    delete tst.misc.pendingAbsorb;
+                    S21.banner(target, pa.ability);
+                    if (pa.kind === "heal") { try { target.gainHp(healOf(target, pa.frac)); } catch (e) {} S21.log(name(target) + " restored its HP!"); }
+                    if (pa.kind === "kindle") { tst.misc.kindled = true; S21.log(name(target) + " was kindled!"); }
+                    if (pa.kind === "stageAgi") S21.applyStageChange(target, "agi", 1, null, {});
+                    if (pa.kind === "stageMat") S21.applyStageChange(target, "mat", 1, null, {});
+                    if (pa.kind === "stageAtk") S21.applyStageChange(target, "atk", 1, null, {});
+                    if (pa.kind === "stageDef2") S21.applyStageChange(target, "def", 2, null, {});
+                }
+                if (tst.misc.pendingShieldLoss) {
+                    const frac = tst.misc.pendingShieldLoss;
+                    delete tst.misc.pendingShieldLoss;
+                    try { target.gainHp(-Math.max(1, Math.floor(target.mhp * frac))); } catch (e) {}
+                }
+                const dealt = (hpBefore !== null) ? Math.max(0, hpBefore - target.hp) : Math.max(0, value || 0);
+                if (subject && item && item.damage && item.damage.type > 0 && dealt >= 0 && value > 0) {
+                    S21.fireOnHit(subject, target, item, dealt);
+                    // Twofold Bond: a second strike at 25% of the first.
+                    if (activeIs(subject, "twofold-bond") && dealt > 0 &&
+                        typeof target.isAlive === "function" && target.isAlive() &&
+                        typeof subject.isAlive === "function" && subject.isAlive()) {
+                        const second = Math.max(1, Math.floor(dealt * 0.25));
+                        S21.banner(subject, "twofold-bond");
+                        try { target.gainHp(-second); } catch (e) {}
+                        S21.log(name(target) + " was struck a second time!");
+                    }
+                }
+            } catch (e) {}
+        };
+        const _s21B_AIUE = Game_Action.prototype.applyItemUserEffect;
+        Game_Action.prototype.applyItemUserEffect = function (target) {
+            const r = _s21B_AIUE.call(this, target);
+            try {
+                const subject = (typeof this.subject === "function") ? this.subject() : null;
+                const item = (typeof this.item === "function") ? this.item() : null;
+                if (!subject || !item || !S21.isGanjukoBattler(subject) || !inBattle()) return r;
+                // Fisher's Dividend: using a Water move arms the catch.
+                if (item.damage && item.damage.elementId === 3 && activeIs(subject, "fishers-dividend")) {
+                    S21.store(subject).misc.hasCatch = true;
+                }
+                // Echo Dancer: dance moves are copied by every bearer.
+                if (S21.skillTags(item).includes("dance")) {
+                    for (const b of S21.allStanding()) {
+                        if (b !== subject && activeIs(b, "echo-dancer") && typeof b.isAlive === "function" && b.isAlive()) {
+                            S21.banner(b, "echo-dancer");
+                            for (const e of item.effects || []) {
+                                if (e.code === 31 && S21.STAGE_OF_PARAM[e.dataId]) {
+                                    S21.applyStageChange(b, S21.STAGE_OF_PARAM[e.dataId], 1, null, { selfInflicted: true });
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {}
+            return r;
+        };
+    }
+    S21._status.framework = true;
+})();
+// === END Section 21 Part B2 — ability framework core ===
+
+
+// ============================================================================
+// SECTION 21 Part B3 — ABILITY HOOK DISPATCH + THE 316 IMPLEMENTATIONS
+// ============================================================================
+// Entry / end-of-turn / KO / faint dispatchers, the pre-move gate, passive
+// param rates, priority (speed) adjustments, MP tax, item block, escape
+// rules, doubles draw-in, Perfect Mimic / Borrowed Face surface wraps, the
+// AI scorer extension, and S21.ABILITY_IMPL — the per-entry implementation
+// table for all 316 library entries (declarative where the framework's
+// vocabulary suffices, fn hooks where it does not).
+(() => {
+    "use strict";
+    const GE = window.GanjukoEngine;
+    if (!GE || !GE.S21) return;
+    const S21 = GE.S21;
+    const br = () => S21.battleRandom();
+    const brChance = (p) => br() < p;
+    const name = (b) => S21.battlerName(b);
+    const activeIs = (b, id) => S21.abilityActive(b) === id;
+    const implOf = (b) => { const id = S21.abilityActive(b); return id ? (S21.ABILITY_IMPL[id] || null) : null; };
+    const turnNow = () => S21.turnNow();
+    function healOf(b, frac) { return Math.max(1, Math.floor(b.mhp * frac)); }
+    function doHeal(b, frac) {
+        if (!b || typeof b.isAlive !== "function" || !b.isAlive()) return;
+        let amt = healOf(b, frac);
+        if (activeIs(b, "bloom-renewal")) amt = Math.floor(amt * 1.5);
+        try { b.gainHp(amt); } catch (e) {}
+    }
+    function foeSkills(b) {
+        const ids = new Set();
+        try { if (typeof b.skills === "function") for (const s of b.skills()) if (s && s.id) ids.add(s.id); } catch (e) {}
+        try { if (Array.isArray(b._ganjukoPoolSkills)) for (const id of b._ganjukoPoolSkills) ids.add(id); } catch (e) {}
+        try {
+            const data = (typeof b.enemy === "function") ? b.enemy() : null;
+            if (data && Array.isArray(data.actions)) for (const a of data.actions) if (a && a.skillId) ids.add(a.skillId);
+        } catch (e) {}
+        return Array.from(ids);
+    }
+    function skillById(id) {
+        try { if (typeof $dataSkills !== "undefined" && $dataSkills && $dataSkills[id]) return $dataSkills[id]; } catch (e) {}
+        return null;
+    }
+
+    // ------------------------------------------------------------ entry
+    S21.onEntry = function (b) {
+        const st = S21.store(b);
+        const m = st.misc;
+        m.enteredTurn = turnNow();
+        m.turnsInBattle = 0;
+        m.paletteUsed = false;
+        if (!S21._leadsMarked) {
+            S21._leadsMarked = true;
+            for (const x of S21.allStanding()) { try { S21.store(x).misc.leadEntry = true; } catch (e) {} }
+        }
+        const ab = S21.abilityActive(b);
+        const imp = implOf(b);
+        if (ab && imp) {
+            if (imp.entry) {
+                const e = imp.entry;
+                let acted = false;
+                if (e.sky) { S21.setSky(e.sky, b); acted = true; }
+                if (e.aura) { S21.setAura(e.aura, 5); acted = true; }
+                if (e.first && m.enteredOnce) { /* first-entry effects skip re-entries */ }
+                else {
+                    if (e.self) for (const k of Object.keys(e.self)) { S21.applyStageChange(b, k, e.self[k], null, { selfInflicted: true }); acted = true; }
+                    if (e.foes) {
+                        for (const f of S21.foesOf(b)) {
+                            for (const k of Object.keys(e.foes)) S21.applyStageChange(f, k, e.foes[k], b, { entryEffect: true });
+                        }
+                        acted = true;
+                    }
+                }
+                if (acted) S21.banner(b, ab);
+                if (e.first) m.enteredOnce = true;
+            }
+            if (typeof imp.entryFn === "function") { try { imp.entryFn(b, S21); } catch (e) {} }
+        }
+        // Venom Rubble entry hazard on this battler's side.
+        try {
+            const f = S21.field;
+            const layers = f && f.hazards ? (f.hazards[S21.sideOf(b)] || 0) : 0;
+            if (layers > 0 && typeof b.isAlive === "function" && b.isAlive()) {
+                const r = S21.applyStatus(null, b, layers >= 2 ? 31 : 4, null);
+                if (r.ok) S21.log(name(b) + " was poisoned by the venom rubble!");
+            }
+        } catch (e) {}
+        // Hero Unmasked: the return package, once per battle.
+        if (ab === "hero-unmasked" && m.leftOnce && !m.heroDone) {
+            m.heroDone = true;
+            S21.banner(b, ab);
+            S21.applyStageChange(b, "atk", 1, null, { selfInflicted: true });
+            S21.applyStageChange(b, "mat", 1, null, { selfInflicted: true });
+        }
+    };
+    S21.onSwitchOut = function (b) {
+        const ab = S21.abilityActive(b);
+        const m = S21.store(b).misc;
+        if (ab === "wild-renewal") S21.cureMajor(b);
+        if (ab === "returnbloom") doHeal(b, 1 / 3);
+        if (ab === "hero-unmasked") m.leftOnce = true;
+        delete m.lockedSkillId; // move locks end on switch (source rule)
+        delete m.truantOk;      // loafing parity restarts on entry
+        delete m.typeOverride; // Prismflesh / palette forms end on switch
+        delete m.doomTurns;    // doom clears on switch (Pokémon rule)
+        delete m.disguiseSpeciesId;
+    };
+    S21.onBattleEnd = function (b) {
+        delete b._s21MimicSpeciesId;
+        S21._leadsMarked = false;
+    };
+    if (typeof BattleManager !== "undefined" && BattleManager && typeof BattleManager.setup === "function") {
+        const _s21B_BM_setup = BattleManager.setup;
+        BattleManager.setup = function () {
+            S21.initField();
+            S21._leadsMarked = false;
+            return _s21B_BM_setup.apply(this, arguments);
+        };
+    }
+
+    // ------------------------------------------------------- end of turn
+    S21.endOfTurnEffects = function (b) {
+        const ab = S21.abilityActive(b);
+        const imp = implOf(b);
+        const sky = S21.skyActive();
+        const aura = S21.auraActive();
+        if (imp && imp.eot) {
+            const e = imp.eot;
+            if (e.heal) { doHeal(b, e.heal); S21.banner(b, ab); }
+            if (e.healSky && sky && e.healSky[sky]) doHeal(b, e.healSky[sky]);
+            if (e.loseSky && sky && e.loseSky[sky] && activeIs(b, "hexward-body") !== true) {
+                try { b.gainHp(-healOf(b, e.loseSky[sky])); } catch (err) {}
+            }
+            if (e.cure && brChance(e.cure)) {
+                if (S21.cureMajor(b)) { S21.banner(b, ab); S21.log(name(b) + " was cured of its status!"); }
+            }
+            if (e.cureSky && sky === e.cureSky) {
+                if (S21.cureMajor(b)) S21.log(name(b) + " was cured of its status!");
+            }
+        }
+        if (imp && typeof imp.eotFn === "function") { try { imp.eotFn(b, S21); } catch (e) {} }
+        // Bloom aura: grounded battlers restore 1/16.
+        if (aura === "Bloom" && S21.grounded(b) && typeof b.isAlive === "function" && b.isAlive()) {
+            doHeal(b, 1 / 16);
+        }
+    };
+    S21.tickMisc = function (b) {
+        const st = S21.store(b);
+        const m = st.misc;
+        m.turnsInBattle = (m.turnsInBattle || 0) + 1;
+        if (m.disabled) {
+            for (const k of Object.keys(m.disabled)) {
+                m.disabled[k]--;
+                if (m.disabled[k] <= 0) delete m.disabled[k];
+            }
+        }
+        if (m.doomTurns !== undefined && m.doomTurns !== null && typeof b.isAlive === "function" && b.isAlive()) {
+            m.doomTurns--;
+            if (m.doomTurns <= 0) {
+                delete m.doomTurns;
+                S21.log(name(b) + "'s doom counter reached zero!");
+                try { b.gainHp(-b.hp); } catch (e) {}
+            }
+        }
+        // Coward's Exit / Sovereign's Exit resolve at turn end.
+        if (m.exitWanted) {
+            m.exitWanted = false;
+            if (typeof b.isAlive === "function" && b.isAlive()) {
+                const side = S21.sideOf(b);
+                if (side === "enemy") {
+                    let wild = true;
+                    try { wild = !(typeof $gameTemp !== "undefined" && $gameTemp && $gameTemp._isTrainerBattle); } catch (e) {}
+                    if (wild && typeof b.escape === "function") {
+                        S21.banner(b, S21.abilityActive(b));
+                        S21.log(name(b) + " fled the battle!");
+                        try { b.escape(); } catch (e) {}
+                    }
+                } else {
+                    try {
+                        const all = (typeof $gameParty !== "undefined" && $gameParty) ? $gameParty.allMembers() : [];
+                        const benchIdx = all.findIndex((x, i) => i > 0 && x && typeof x.isAlive === "function" && x.isAlive());
+                        if (benchIdx > 0 && all[0] === b) {
+                            S21.banner(b, S21.abilityActive(b));
+                            $gameParty.swapOrder(0, benchIdx);
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+    };
+
+    // ------------------------------------------------------------ faints
+    S21.onFaint = function (fainted, attacker, skillId) {
+        // Witnesses: Soulforge Heart rises on ANY other battler's faint.
+        for (const b of S21.allStanding()) {
+            if (b !== fainted && typeof b.isAlive === "function" && b.isAlive() && activeIs(b, "soulforge-heart")) {
+                S21.applyStageChange(b, "mat", 1, null, {});
+                S21.banner(b, "soulforge-heart");
+            }
+        }
+        // Inheritor class: an ally's faint passes its ability on (doubles).
+        try {
+            for (const b of S21.alliesOf(fainted)) {
+                const bAb = S21.abilityActive(b);
+                if ((bAb === "inheritor" || bAb === "alchemists-inheritance") &&
+                    typeof b.isAlive === "function" && b.isAlive()) {
+                    b._s21AbilityOverride = S21.abilityOf(fainted);
+                    S21.banner(b, bAb);
+                    S21.log(name(b) + " inherited " + name(fainted) + "'s ability!");
+                }
+            }
+        } catch (e) {}
+        const imp = implOf(fainted);
+        if (imp && typeof imp.faintFn === "function") { try { imp.faintFn(fainted, attacker, S21); } catch (e) {} }
+        if (attacker && attacker !== fainted && typeof attacker.isAlive === "function" && attacker.isAlive()) {
+            const aImp = implOf(attacker);
+            if (aImp) {
+                if (aImp.ko) {
+                    for (const k of Object.keys(aImp.ko)) S21.applyStageChange(attacker, k, aImp.ko[k], null, {});
+                    S21.banner(attacker, S21.abilityActive(attacker));
+                }
+                if (typeof aImp.koFn === "function") { try { aImp.koFn(attacker, fainted, S21); } catch (e) {} }
+            }
+        }
+    };
+
+    // --------------------------------------------------------- pre-move
+    S21.extraActionGate = function (subject, action) {
+        if (!subject || !action) return false;
+        let item = null;
+        try { item = (typeof action.item === "function") ? action.item() : null; } catch (e) {}
+        if (!item) return false;
+        const sAb = S21.abilityActive(subject);
+        // Stillwater Aura: no battler may use explosive moves.
+        if (S21.skillTags(item).includes("explosive") && S21.anyStandingWith("stillwater-aura")) {
+            S21.log("The still water damped the explosion!");
+            return true;
+        }
+        // Priority blocks: Regal Decree class + Astral aura.
+        let prio = (item.speed || 0) > 0;
+        if (!prio && sAb === "tricksters-bow" && item.damage && item.damage.type === 0) prio = true;
+        if (!prio && sAb === "firstwind" && item.damage && item.damage.elementId === 7 && subject.hp >= subject.mhp) prio = true;
+        if (prio && typeof action.isForOpponent === "function" && action.isForOpponent()) {
+            if (S21.foesOf(subject).some(f => ["regal-decree", "blinding-mien", "veiltail-decree"].includes(S21.abilityActive(f)))) {
+                S21.log("A regal decree blocked the priority move!");
+                return true;
+            }
+            if (S21.auraActive() === "Astral" && S21.foesOf(subject).length &&
+                S21.foesOf(subject).every(f => S21.grounded(f))) {
+                S21.log("The Astral aura blocked the priority move!");
+                return true;
+            }
+        }
+        const imp = implOf(subject);
+        if (imp && typeof imp.gateFn === "function") {
+            try { if (imp.gateFn(subject, item, S21)) return true; } catch (e) {}
+        }
+        // Hexed Husk disable lock (Calm Incense covers the bearer + allies).
+        const dis = S21.store(subject).misc.disabled;
+        if (dis && dis[item.id] > 0) {
+            const covered = [subject].concat(S21.alliesOf(subject)).some(a => activeIs(a, "calm-incense"));
+            if (!covered) {
+                S21.log(name(subject) + "'s " + item.name + " is disabled!");
+                return true;
+            }
+        }
+        // Shifting Palette / Shifting Colors: become the move's type.
+        if ((sAb === "shifting-palette" || sAb === "shifting-colors") &&
+            !S21.store(subject).misc.paletteUsed && item.damage && item.damage.elementId) {
+            S21.store(subject).misc.typeOverride = [item.damage.elementId];
+            S21.store(subject).misc.paletteUsed = true;
+            S21.banner(subject, sAb);
+        }
+        // Blade-and-Aegis Stance: a per-action stage lens, reverted when
+        // the action ends (BattleManager.endAction wrap below).
+        if (sAb === "blade-and-aegis-stance") {
+            const st = S21.store(subject);
+            const damaging = item.damage && item.damage.type > 0;
+            const lens = damaging ? { atk: 1, mat: 1, def: -1, mdf: -1 } : { atk: -1, mat: -1, def: 1, mdf: 1 };
+            st.misc.lens = lens;
+            for (const k of Object.keys(lens)) st[k] = Math.max(-6, Math.min(6, st[k] + lens[k]));
+        }
+        return false;
+    };
+    if (typeof BattleManager !== "undefined" && BattleManager && typeof BattleManager.endAction === "function") {
+        const _s21B_BM_endAction = BattleManager.endAction;
+        BattleManager.endAction = function () {
+            const subject = this._subject;
+            const r = _s21B_BM_endAction.call(this);
+            try {
+                if (subject && subject._ganjukoStages && subject._ganjukoStages.misc.lens) {
+                    const st = subject._ganjukoStages;
+                    for (const k of Object.keys(st.misc.lens)) st[k] -= st.misc.lens[k];
+                    delete st.misc.lens;
+                }
+            } catch (e) {}
+            return r;
+        };
+    }
+    // Trickster's Bow vs Umbra targets + Patient Spores' ability-piercing
+    // status: a second gate layer over Part A's state application wrap.
+    if (typeof Game_Action !== "undefined" && Game_Action.prototype &&
+        typeof Game_Action.prototype.itemEffectAddNormalState === "function") {
+        const _s21B_IEANS = Game_Action.prototype.itemEffectAddNormalState;
+        Game_Action.prototype.itemEffectAddNormalState = function (target, effect) {
+            try {
+                const subject = (typeof this.subject === "function") ? this.subject() : null;
+                const item = (typeof this.item === "function") ? this.item() : null;
+                if (subject && item && item.damage && item.damage.type === 0 && target && S21.isGanjukoBattler(target)) {
+                    const sAb = S21.abilityActive(subject);
+                    if (sAb === "tricksters-bow" && S21.effectiveTypes(target).includes(8)) {
+                        S21.log("It doesn't affect " + name(target) + "!");
+                        return;
+                    }
+                    if (sAb === "patient-spores" && effect && effect.dataId) {
+                        // Status moves pierce the target's ability: apply
+                        // directly with the ability gate temporarily lifted.
+                        const saved = S21.abilityImmuneTo;
+                        S21.abilityImmuneTo = function () { return false; };
+                        try { return _s21B_IEANS.call(this, target, effect); }
+                        finally { S21.abilityImmuneTo = saved; }
+                    }
+                }
+            } catch (e) {}
+            return _s21B_IEANS.call(this, target, effect);
+        };
+    }
+    // Bold Spirit / Inward Eye hit-through: Normal and Earth moves strike
+    // Umbra-types. The inner chain prices chart immunity as 0; when the
+    // only reason for the 0 is that immunity, recompute the strike with
+    // the immunity lifted (STAB and the standard roll included).
+    S21.recomputeStrike = function (subject, target, item, critical) {
+        try {
+            const formula = item && item.damage ? item.damage.formula : null;
+            if (!formula) return 0;
+            const a = { atk: subject.atk, mat: subject.mat, mhp: subject.mhp, hp: subject.hp, mp: subject.mp };
+            const b = { def: target.def, mdf: target.mdf, mhp: target.mhp, hp: target.hp };
+            const fn = new Function("a", "b", "return (" + String(formula).replace(/[^0-9a-zA-Z_+\-*/(). ]/g, "") + ");");
+            let v = Number(fn(a, b)) || 0;
+            const el = item.damage.elementId || 1;
+            if (S21.effectiveTypes(subject).includes(el)) v *= 1.5;
+            if (critical) v *= 1.5;
+            v *= 0.85 + br() * 0.15;
+            return Math.max(1, Math.floor(v));
+        } catch (e) { return 0; }
+    };
+    if (typeof Game_Action !== "undefined" && Game_Action.prototype &&
+        typeof Game_Action.prototype.makeDamageValue === "function") {
+        const _s21B_MDV = Game_Action.prototype.makeDamageValue;
+        Game_Action.prototype.makeDamageValue = function (target, critical) {
+            const value = _s21B_MDV.call(this, target, critical);
+            try {
+                if (value === 0 && target && S21.isGanjukoBattler(target)) {
+                    const subject = (typeof this.subject === "function") ? this.subject() : null;
+                    const item = (typeof this.item === "function") ? this.item() : null;
+                    if (subject && item && item.damage && item.damage.type > 0 &&
+                        [1, 6].includes(item.damage.elementId || 1) &&
+                        S21.effectiveTypes(target).includes(8)) {
+                        const sAb = S21.abilityActive(subject);
+                        if (sAb === "bold-spirit" || sAb === "inward-eye") {
+                            return S21.recomputeStrike(subject, target, item, critical);
+                        }
+                    }
+                }
+            } catch (e) {}
+            return value;
+        };
+    }
+
+    // ------------------------------------------------- passive param rates
+    function paramCondOk(cond, b) {
+        if (!cond) return true;
+        if (cond === "statused") return S21.majorStatusOf(b) > 0;
+        if (cond === "halfOrBelow") return b.hp * 2 <= b.mhp;
+        if (cond === "aboveHalf") return b.hp * 2 > b.mhp;
+        if (cond.startsWith("sky:")) return S21.skyActive() === cond.slice(4);
+        if (cond.startsWith("aura:")) return S21.auraActive() === cond.slice(5);
+        return true;
+    }
+    if (typeof Game_BattlerBase !== "undefined" && Game_BattlerBase.prototype &&
+        typeof Game_BattlerBase.prototype.paramRate === "function") {
+        const _s21B_paramRate = Game_BattlerBase.prototype.paramRate;
+        Game_BattlerBase.prototype.paramRate = function (paramId) {
+            let r = _s21B_paramRate.call(this, paramId);
+            try {
+                if (!S21.isGanjukoBattler(this)) return r;
+                if (S21.inBattle()) {
+                    // Ruin quartet: field-wide suppression by OTHER bearers.
+                    const ruin = { 2: "tablets-of-undoing", 3: "sword-of-undoing", 4: "vessel-of-undoing", 5: "beads-of-undoing" }[paramId];
+                    if (ruin && S21.allStanding().some(o => o !== this && activeIs(o, ruin))) r *= 0.75;
+                    // Bloomtide Gift: Day sky lifts bearer + allies.
+                    if ((paramId === 2 || paramId === 5) && S21.skyActive() === "Day" &&
+                        S21.standingOf(this).some(o => activeIs(o, "bloomtide-gift"))) r *= 1.5;
+                }
+                const imp = implOf(this);
+                if (imp) {
+                    if (Array.isArray(imp.param)) {
+                        for (const rule of imp.param) {
+                            if (rule.p === paramId && paramCondOk(rule.if, this)) r *= rule.m;
+                        }
+                    }
+                    if (typeof imp.paramFn === "function") {
+                        const m = imp.paramFn(this, paramId, S21);
+                        if (typeof m === "number") r *= m;
+                    }
+                }
+            } catch (e) {}
+            return r;
+        };
+    }
+    // ------------------------------------------------------- priority
+    if (typeof Game_Action !== "undefined" && Game_Action.prototype &&
+        typeof Game_Action.prototype.speed === "function") {
+        const _s21B_speed = Game_Action.prototype.speed;
+        Game_Action.prototype.speed = function () {
+            let s = _s21B_speed.call(this);
+            try {
+                const subject = (typeof this.subject === "function") ? this.subject() : null;
+                const item = (typeof this.item === "function") ? this.item() : null;
+                if (!subject || !item || !S21.isGanjukoBattler(subject)) return s;
+                const imp = implOf(subject);
+                if (imp) {
+                    if (typeof imp.speed === "number") s += imp.speed;
+                    if (typeof imp.speedFn === "function") s += imp.speedFn(subject, item, S21) || 0;
+                }
+            } catch (e) {}
+            return s;
+        };
+    }
+    // ------------------------------------------------------- MP tax
+    if (typeof Game_BattlerBase !== "undefined" && Game_BattlerBase.prototype &&
+        typeof Game_BattlerBase.prototype.skillMpCost === "function") {
+        const _s21B_skillMpCost = Game_BattlerBase.prototype.skillMpCost;
+        Game_BattlerBase.prototype.skillMpCost = function (skill) {
+            let cost = _s21B_skillMpCost.call(this, skill);
+            try {
+                if (S21.isGanjukoBattler(this) && S21.inBattle() &&
+                    S21.foesOf(this).some(f => activeIs(f, "dread-tax") || activeIs(f, "twin-souled-sovereign"))) {
+                    cost *= 2;
+                }
+            } catch (e) {}
+            return cost;
+        };
+    }
+    // ------------------------------------------------------- item block
+    if (typeof Game_Party !== "undefined" && Game_Party.prototype &&
+        typeof Game_Party.prototype.canUse === "function") {
+        const _s21B_canUse = Game_Party.prototype.canUse;
+        Game_Party.prototype.canUse = function (item) {
+            try {
+                if (item && item.consumable && S21.inBattle() &&
+                    S21.allStanding().some(o => S21.sideOf(o) === "enemy" &&
+                        (activeIs(o, "rattlebones") || activeIs(o, "twin-souled-sovereign")))) {
+                    return false;
+                }
+            } catch (e) {}
+            return _s21B_canUse.call(this, item);
+        };
+    }
+    // ------------------------------------------------------- escape rules
+    S21.trapBlockedByAbility = function (b) {
+        // Foe-side trapping abilities hold this battler in.
+        const types = S21.effectiveTypes(b);
+        for (const f of S21.foesOf(b)) {
+            const fAb = S21.abilityActive(f);
+            if (fAb === "umbral-tether" && !types.includes(8)) return true;
+            if (fAb === "lodestone-grasp" && types.includes(5)) return true;
+            if (fAb === "snareground" && S21.grounded(b)) return true;
+        }
+        return false;
+    };
+    if (typeof BattleManager !== "undefined" && BattleManager && typeof BattleManager.processEscape === "function") {
+        const _s21B_processEscape = BattleManager.processEscape;
+        BattleManager.processEscape = function () {
+            try {
+                const party = (typeof $gameParty !== "undefined" && $gameParty) ? $gameParty.battleMembers() : [];
+                const trapped = party.some(m => m && S21.trapBlockedByAbility(m));
+                if (trapped) this._escapeRatio = -1;
+                else if (party.some(m => m && activeIs(m, "slipaway"))) this._escapeRatio = 999;
+            } catch (e) {}
+            return _s21B_processEscape.call(this);
+        };
+    }
+    // ------------------------------------------------------- draw-in
+    if (typeof Game_Enemy !== "undefined" && Game_Enemy.prototype &&
+        typeof Game_Enemy.prototype.makeActions === "function") {
+        const _s21B_makeActions = Game_Enemy.prototype.makeActions;
+        Game_Enemy.prototype.makeActions = function () {
+            _s21B_makeActions.call(this);
+            try {
+                if (!S21.inBattle() || !this._actions) return;
+                const sAb = S21.abilityActive(this);
+                if (sAb === "slipstream-wake" || sAb === "unswerving-wake") return;
+                const members = (typeof $gameParty !== "undefined" && $gameParty) ? $gameParty.battleMembers() : [];
+                if (members.length < 2) return; // draw-in matters in doubles
+                for (const act of this._actions) {
+                    if (!act || typeof act.isForOpponent !== "function" || !act.isForOpponent()) continue;
+                    const item = (typeof act.item === "function") ? act.item() : null;
+                    if (!item || !item.damage) continue;
+                    const el = item.damage.elementId;
+                    const want = el === 5 ? "galvanic-spire" : (el === 3 ? "maelstrom-call" : null);
+                    if (!want) continue;
+                    const idx = members.findIndex(mm => mm && activeIs(mm, want) && typeof mm.isAlive === "function" && mm.isAlive());
+                    if (idx >= 0 && typeof act.setTarget === "function") act.setTarget(idx);
+                }
+            } catch (e) {}
+        };
+    }
+    // --------------------------------------- mimic + disguise surfaces
+    for (const clsName of ["Game_Actor", "Game_Enemy"]) {
+        const cls = (typeof window !== "undefined") ? window[clsName] : null;
+        if (cls && cls.prototype && typeof cls.prototype.ganjukoSpecies === "function") {
+            const orig = cls.prototype.ganjukoSpecies;
+            cls.prototype.ganjukoSpecies = function () {
+                if (this._s21MimicSpeciesId) return GE.getSpecies(this._s21MimicSpeciesId);
+                return orig.call(this);
+            };
+        }
+        if (cls && cls.prototype && typeof cls.prototype.name === "function") {
+            const origName = cls.prototype.name;
+            cls.prototype.name = function () {
+                try {
+                    const st = this._ganjukoStages;
+                    if (st && st.misc && st.misc.disguiseSpeciesId) {
+                        const sp = GE.getSpecies(st.misc.disguiseSpeciesId);
+                        if (sp) return sp.name;
+                    }
+                } catch (e) {}
+                return origName.call(this);
+            };
+        }
+    }
+
+    // ------------------------------------------------------- AI scorer
+    // v1 §6 + v2 §2.9: stage literacy, status literacy, setup valuation.
+    // Wraps the Section 16.4 scorer; the base score still prices damage.
+    const STAGE_OF_PARAM_SC = { 2: "atk", 3: "def", 4: "mat", 5: "mdf", 6: "agi" };
+    function stageContentOf(skill) {
+        const self = [], foe = [];
+        for (const e of skill.effects || []) {
+            if (e.code === 31 && STAGE_OF_PARAM_SC[e.dataId]) self.push([STAGE_OF_PARAM_SC[e.dataId], 1]);
+            if (e.code === 32 && STAGE_OF_PARAM_SC[e.dataId]) foe.push([STAGE_OF_PARAM_SC[e.dataId], -1, 1]);
+        }
+        if (S21.SELF_STAGE[skill.id]) for (const [k, d] of S21.SELF_STAGE[skill.id]) self.push([k, d]);
+        if (S21.FOE_STAGE[skill.id]) for (const [k, d, c] of S21.FOE_STAGE[skill.id]) foe.push([k, d, c]);
+        return { self, foe };
+    }
+    function statWeight(k) { return { atk: 16, mat: 16, agi: 12, def: 10, mdf: 10, acc: 8, eva: 8 }[k] || 8; }
+    const _s21B_score = GE.scoreEnemyAction;
+    GE.scoreEnemyAction = function (enemy, actionItem, target) {
+        const base = _s21B_score.call(this, enemy, actionItem, target);
+        try {
+            if (!enemy || !S21.isGanjukoBattler(enemy)) return base;
+            let skill = null;
+            if (typeof actionItem === "number") skill = skillById(actionItem);
+            else if (actionItem && actionItem.damage) skill = actionItem;
+            else if (actionItem && typeof actionItem.item === "function") skill = actionItem.item();
+            else if (actionItem && actionItem.skillId != null) skill = skillById(actionItem.skillId);
+            if (!skill) return base;
+            const est = S21.store(enemy);
+            const tst = target ? S21.store(target) : null;
+            const content = stageContentOf(skill);
+            const damaging = skill.damage && skill.damage.type > 0;
+            // (e) A burned attacker's physical estimates halve (the shared
+            // damage path does this live; the scorer mirrors it).
+            let score = base;
+            if (damaging && skill.hitType === 1 && typeof enemy.isStateAffected === "function" && enemy.isStateAffected(11)) {
+                score = base * 0.5;
+            }
+            // Pure stage moves: value setup by headroom + battle length.
+            const isHeal = skill.damage && skill.damage.type === 3 && /mhp/.test(skill.damage.formula || "");
+            if (!damaging && !isHeal && (content.self.length || content.foe.length)) {
+                let v = 0;
+                const hpRate = (typeof enemy.hpRate === "function") ? enemy.hpRate() : (enemy.hp / Math.max(1, enemy.mhp));
+                const lengthFactor = hpRate > 0.7 ? 1 : 0.45; // don't set up while dying
+                for (const [k, d] of content.self) {
+                    const cur = est[k] || 0;
+                    const headroom = d > 0 ? (6 - cur) / 6 : (cur + 6) / 6;
+                    if (headroom <= 0) continue;
+                    v += statWeight(k) * 3.4 * Math.abs(d) * headroom * lengthFactor;
+                }
+                for (const [k, d, c] of content.foe) {
+                    if (!tst) continue;
+                    const cur = tst[k] || 0;
+                    const headroom = (cur + 6) / 6;
+                    if (headroom <= 0) continue;
+                    v += statWeight(k) * 2.2 * Math.abs(d) * (c || 1) * headroom;
+                }
+                return v > 0 ? v * ((skill.successRate || 100) / 100) : 0.5;
+            }
+            // Damaging moves: foe stage riders add matchup value; capped
+            // riders add nothing. Self-drops price at face value already.
+            if (damaging && tst && content.foe.length) {
+                let add = 0;
+                for (const [k, d, c] of content.foe) {
+                    const cur = tst[k] || 0;
+                    if (cur <= -6) continue;
+                    let relevance = 0.7;
+                    try {
+                        if (k === "atk") relevance = target.atk >= target.mat ? 1 : 0.4;
+                        if (k === "mat") relevance = target.mat >= target.atk ? 1 : 0.4;
+                        if (k === "def") relevance = enemy.atk >= enemy.mat ? 1 : 0.4;
+                        if (k === "mdf") relevance = enemy.mat >= enemy.atk ? 1 : 0.4;
+                    } catch (e) {}
+                    add += statWeight(k) * 1.4 * Math.abs(d) * (c || 1) * relevance;
+                }
+                score += add * ((skill.successRate || 100) / 100);
+            }
+            // Pure status moves: worthless vs immune / already-statused
+            // targets; valued by matchup otherwise (v2 §2.9).
+            if (!damaging && skill.effects && skill.effects.some(e => e.code === 21) && target) {
+                const stateId = (skill.effects.find(e => e.code === 21) || {}).dataId;
+                const gate = S21.canApplyStatus(enemy, target, stateId, skill);
+                if (!gate.ok) return 0.5;
+                let v = 20;
+                try {
+                    if (stateId === 11 && target.atk >= target.mat) v += 14;         // burn vs physical
+                    if (stateId === 12 && target.agi > enemy.agi) v += 14;          // paralysis vs faster
+                    if (stateId === 31) v += (turnNow() <= 2 ? 12 : 4);             // toxic in long battles
+                    if (stateId === 10) v *= 0.6;                                    // sleep is short (clock)
+                    if (stateId === 8) v *= 0.8;
+                } catch (e) {}
+                return v * ((skill.successRate || 100) / 100);
+            }
+            return score;
+        } catch (e) { return base; }
+    };
+
+    // ------------------------------------------------------- public UI
+    S21.abilityLineFor = function (b) {
+        const id = S21.abilityOf(b);
+        if (!id) return null;
+        return { id, name: S21.abilityName(id), desc: S21.abilityDesc(id) };
+    };
+    S21.dexLineForSpecies = function (sp) {
+        if (!sp || !sp.abilities) return "";
+        const names = [];
+        for (const id of sp.abilities.regular || []) names.push(S21.abilityName(id));
+        if (sp.abilities.special) names.push(S21.abilityName(sp.abilities.special));
+        if (sp.abilities.signature) names.push(S21.abilityName(sp.abilities.signature));
+        return names.join(" · ");
+    };
+    S21._status.dispatch = true;
+})();
+// === END Section 21 Part B3 (dispatch) ===
+
+
+// ============================================================================
+// SECTION 21 Part B3b — S21.ABILITY_IMPL: ALL 316 LIBRARY ENTRIES
+// ============================================================================
+// Declarative rules ({dealt, taken, param, entry, eot, immune, ko, speed})
+// are consumed by the Part A/B2/B3 framework seams; fn hooks cover the
+// rest. An empty object {} means the entry's machinery lives entirely in
+// a framework seam (named in the v13 report). Coverage is test-enforced:
+// every library id must appear here AND in S21.ABILITY_LIB.
+(() => {
+    "use strict";
+    const GE = window.GanjukoEngine;
+    if (!GE || !GE.S21) return;
+    const S21 = GE.S21;
+    const brC = (p) => S21.battleRandom() < p;
+    const nm = (b) => S21.battlerName(b);
+    function foeSkillIds(b) {
+        const ids = new Set();
+        try { if (typeof b.skills === "function") for (const s of b.skills()) if (s && s.id) ids.add(s.id); } catch (e) {}
+        try { if (Array.isArray(b._ganjukoPoolSkills)) for (const id of b._ganjukoPoolSkills) ids.add(id); } catch (e) {}
+        try {
+            const data = (typeof b.enemy === "function") ? b.enemy() : null;
+            if (data && Array.isArray(data.actions)) for (const a of data.actions) if (a && a.skillId) ids.add(a.skillId);
+        } catch (e) {}
+        return Array.from(ids);
+    }
+    function skillRec(id) {
+        try { if (typeof $dataSkills !== "undefined" && $dataSkills && $dataSkills[id]) return $dataSkills[id]; } catch (e) {}
+        return null;
+    }
+    function skillPowOf(id) { const s = skillRec(id); return s ? S21.skillPow(s) : 0; }
+
+    S21.ABILITY_IMPL = {
+        // ------------------------------------------------ ENTRY (24)
+        "dread-presence": { entry: { foes: { atk: -1 } } },
+        "crushing-depths": { entry: { foes: { atk: -1 } } },
+        "dread-twilight": { entry: { foes: { mat: -1 } } },
+        "tidal-terror": { entry: { foes: { def: -1 } } },
+        "eye-of-the-storm": { entry: { foes: { agi: -1 } } },
+        "solar-ascendant": { entry: { self: { mat: 1 } } },
+        "jet-stream": { entry: { self: { agi: 1 } } },
+        "primordial-core": { entry: { self: { def: 1 } } },
+        "architects-decree": { entry: { self: { atk: 1, def: 1, mat: 1, mdf: 1 } } },
+        "firstblade-oath": { entry: { self: { atk: 1 }, first: true } },
+        "firstwall-oath": { entry: { self: { def: 1 }, first: true } },
+        "syrup-haze": { entry: { foes: { eva: -1 }, first: true } },
+        "echo-talent": { entryFn(b) {
+            for (const f of S21.foesOf(b)) {
+                const fid = S21.abilityOf(f);
+                if (!fid) continue;
+                const tier = (S21.ABILITY_LIB[fid] || {}).tier;
+                if (tier === "signature" || tier === "apex") continue;
+                b._s21AbilityOverride = fid;
+                S21.banner(b, "echo-talent");
+                S21.log(nm(b) + " copied " + nm(f) + "'s " + S21.abilityName(fid) + "!");
+                return;
+            }
+        } },
+        "cold-reading": { entryFn(b) {
+            const foes = S21.foesOf(b).filter(f => typeof f.isAlive !== "function" || f.isAlive());
+            if (!foes.length) return;
+            let t = foes[0];
+            for (const f of foes) if ((f.def + f.mdf) < (t.def + t.mdf)) t = f;
+            S21.banner(b, "cold-reading");
+            S21.applyStageChange(b, t.def < t.mdf ? "atk" : "mat", 1, null, { selfInflicted: true });
+        } },
+        "threatsense": { entryFn(b) {
+            const types = S21.effectiveTypes(b);
+            for (const f of S21.foesOf(b)) {
+                for (const id of foeSkillIds(f)) {
+                    const s = skillRec(id);
+                    if (!s || !s.damage || s.damage.type === 0) continue;
+                    const el = s.damage.elementId || 1;
+                    let rate = 1;
+                    for (const t of types) rate *= (GE.GANJUKO_TYPE_CHART[el] || {})[t] !== undefined ? GE.GANJUKO_TYPE_CHART[el][t] : 1;
+                    if (rate > 1 || S21.skillPow(s) >= 130) {
+                        S21.banner(b, "threatsense");
+                        S21.log(nm(b) + " shuddered — a dangerous move is near!");
+                        return;
+                    }
+                }
+            }
+        } },
+        "dreamreading": { entryFn(b) {
+            let best = null, bestPow = -1;
+            for (const f of S21.foesOf(b)) {
+                for (const id of foeSkillIds(f)) {
+                    const p = skillPowOf(id);
+                    if (p > bestPow) { bestPow = p; best = skillRec(id); }
+                }
+            }
+            if (best) {
+                S21.banner(b, "dreamreading");
+                S21.log(nm(b) + " foresaw the foe's " + best.name + "!");
+            }
+        } },
+        "borrowed-face": {
+            entryFn(b) {
+                try {
+                    const roster = S21.sideOf(b) === "actor"
+                        ? ((typeof $gameParty !== "undefined" && $gameParty) ? $gameParty.allMembers() : [])
+                        : ((typeof $gameTroop !== "undefined" && $gameTroop) ? $gameTroop.members() : []);
+                    const last = roster[roster.length - 1];
+                    if (last && last !== b && typeof last.ganjukoSpeciesId === "function") {
+                        S21.store(b).misc.disguiseSpeciesId = last.ganjukoSpeciesId();
+                    }
+                } catch (e) {}
+            },
+            onHitFn(ctx) { delete S21.store(ctx.target).misc.disguiseSpeciesId; }
+        },
+        "perfect-mimic": { entryFn(b) {
+            const foe = S21.foesOf(b).find(f => typeof f.isAlive !== "function" || f.isAlive());
+            if (!foe || typeof foe.ganjukoSpeciesId !== "function") return;
+            b._s21MimicSpeciesId = foe.ganjukoSpeciesId();
+            const fs = S21.store(foe), bs = S21.store(b);
+            for (const k of ["atk", "def", "mat", "mdf", "agi", "acc", "eva"]) bs[k] = fs[k];
+            const fid = S21.abilityOf(foe);
+            if (fid) b._s21AbilityOverride = fid;
+            try { if (b.hp > b.mhp) b.hp = b.mhp; } catch (e) {}
+            S21.banner(b, "perfect-mimic");
+            S21.log(nm(b) + " transformed into " + nm(foe) + "!");
+        } },
+        "veilsweeper": { entryFn(b) { S21.banner(b, "veilsweeper"); } }, // no screens exist in Ganjuko (see report)
+        "shell-tonic": { entryFn(b) {
+            let any = false;
+            for (const a of S21.alliesOf(b)) {
+                const st = S21.store(a);
+                for (const k of ["atk", "def", "mat", "mdf", "agi", "acc", "eva"]) {
+                    if (st[k] !== 0) { st[k] = 0; any = true; }
+                }
+            }
+            if (any) { S21.banner(b, "shell-tonic"); S21.log("Ally stage changes were reset!"); }
+        } },
+        "watchdogs-pride": {}, // Part A entry-effect inversion + trap seam
+        "shared-ledger": { entryFn(b) {
+            const ally = S21.alliesOf(b).find(a => {
+                const st = S21.store(a);
+                return ["atk", "def", "mat", "mdf", "agi", "acc", "eva"].some(k => st[k] !== 0);
+            });
+            if (!ally) return;
+            const as = S21.store(ally), bs = S21.store(b);
+            for (const k of ["atk", "def", "mat", "mdf", "agi", "acc", "eva"]) bs[k] = as[k];
+            S21.banner(b, "shared-ledger");
+        } },
+        "hearthwelcome": { entryFn(b) {
+            const ally = S21.alliesOf(b).find(a => typeof a.isAlive === "function" && a.isAlive());
+            if (!ally) return;
+            S21.banner(b, "hearthwelcome");
+            try { ally.gainHp(Math.max(1, Math.floor(ally.mhp / 4))); } catch (e) {}
+        } },
+        "aspect-of-the-masks": { entryFn(b) {
+            let aspect = "atk", best = -1;
+            try {
+                const sp = (typeof b.ganjukoSpecies === "function") ? b.ganjukoSpecies() : null;
+                const bs = sp && sp.baseStats ? sp.baseStats : null;
+                if (bs) {
+                    for (const [pid, key] of [[2, "atk"], [3, "def"], [5, "mdf"], [6, "agi"]]) {
+                        if ((bs[pid] || 0) > best) { best = bs[pid] || 0; aspect = key; }
+                    }
+                }
+            } catch (e) {}
+            S21.banner(b, "aspect-of-the-masks");
+            S21.applyStageChange(b, aspect, 1, null, { selfInflicted: true });
+        } },
+
+        // ------------------------------------------------ END OF TURN (13)
+        "quickening": { eotFn(b) {
+            if ((S21.store(b).misc.turnsInBattle || 0) < 1) return; // not on the entry turn
+            S21.applyStageChange(b, "agi", 1, null, {});
+            S21.banner(b, "quickening");
+        } },
+        "nightwell": { eot: { healSky: { Night: 1 / 16 } } },
+        "sloughskin": { eot: { cure: 0.30 } },
+        "world-roots": { eot: { cure: 0.30 } },
+        "rainwash": { eot: { cureSky: "Night" } },
+        "stormmend": { eot: { healSky: { Tempest: 1 / 16 } } },
+        "dawn-radiance": { eot: { heal: 1 / 8 } },
+        "radiant-plume": { eot: { heal: 1 / 10 } },
+        "toxinbloom": {}, // Part A trait-chip seam (heals instead of slipping)
+        "parchhide": {
+            eot: { healSky: { Night: 1 / 8 }, loseSky: { Day: 1 / 8 } },
+            takenFn(ctx) {
+                if (ctx.element === 3) { // Water heals it
+                    S21.store(ctx.target).misc.pendingAbsorb = { kind: "heal", frac: 0.25, ability: "parchhide" };
+                    return 0;
+                }
+                if (ctx.element === 2) return 1.25; // Fire bites deeper
+                return null;
+            }
+        },
+        "nightmare-tithe": { eotFn(b) {
+            for (const f of S21.foesOf(b)) {
+                if (typeof f.isAlive === "function" && f.isAlive() && S21.majorStatusOf(f) === 10) {
+                    S21.chipDamage(f, Math.max(1, Math.floor(f.mhp / 8)), b);
+                }
+            }
+        } },
+        "field-medic": { eotFn(b) {
+            if (!brC(0.30)) return;
+            for (const a of S21.alliesOf(b)) {
+                if (S21.cureMajor(a)) { S21.banner(b, "field-medic"); return; }
+            }
+        } },
+        "weatherheart": { eotFn(b) {
+            const keys = ["atk", "def", "mat", "mdf", "agi"];
+            const up = keys[Math.floor(S21.battleRandom() * keys.length)];
+            let dn = keys[Math.floor(S21.battleRandom() * keys.length)];
+            if (dn === up) dn = keys[(keys.indexOf(up) + 1) % keys.length];
+            S21.banner(b, "weatherheart");
+            S21.applyStageChange(b, up, 2, null, {});
+            S21.applyStageChange(b, dn, -1, null, {});
+        } },
+
+        // ------------------------------------------------ DAMAGE DEALT (57)
+        "musk-haze": {},        // B2 on-hit queue (flinch rider)
+        "fortunes-smile": {},   // B2 riderChanceMult x2
+        "thornsurge": { dealt: [{ el: 4, m: 1.5, if: "pinch" }] },
+        "hiveheart": { dealt: [{ el: 4, m: 1.5, if: "pinch" }] },
+        "cindersurge": { dealt: [{ el: 2, m: 1.5, if: "pinch" }] },
+        "riptide-surge": { dealt: [{ el: 3, m: 1.5, if: "pinch" }] },
+        "eternal-flame": { dealt: [{ el: 2, m: 1.5, if: "pinch" }] },
+        "skullbastion": {},     // Part A recoil seam
+        "pugilists-oath": { dealt: [{ tag: "punch", m: 1.2 }] },
+        "true-affinity": {},    // B2 STAB x(2/1.5)
+        "chainmaster": {},      // vacuous: no variable-hit moves exist (see report)
+        "plainchant": {},       // B2 conversion
+        "deadeye-creed": {},    // B2 crit x1.5
+        "smallcraft": { dealt: [{ powLE: 60, m: 1.5 }] },
+        "loaded-stars": {},     // Part A itemCri (+1 crit stage)
+        "unheeding": {},        // Part A makeDamageValue stage-ignore
+        "prism-lens": {},       // B2 NVE x2
+        "bold-spirit": {},      // Part A entry-ATK block + B3 hit-through
+        "all-in-heart": { dealt: [{ recoilMove: true, m: 1.2 }] },
+        "brute-clarity": { dealtFn(ctx) {
+            const item = ctx.item;
+            if (!item) return null;
+            const hasRider = ((item.effects || []).some(e => e.code === 21)) ||
+                !!S21.FOE_STAGE[item.id] || !!S21.FLINCH_RIDERS[item.id];
+            return hasRider ? 1.3 : null;
+        } },
+        "venom-vigor": { dealtFn(ctx) {
+            const st = S21.majorStatusOf(ctx.subject);
+            return (st === 4 || st === 31) && ctx.category === 1 ? 1.5 : null;
+        } },
+        "pyre-vigor": { dealtFn(ctx) {
+            return S21.majorStatusOf(ctx.subject) === 11 && ctx.category === 2 ? 1.5 : null;
+        } },
+        "venomtouch": {},       // B2 on-hit queue
+        "lastword-mind": {},    // B2 (documented approximation, see report)
+        "ghoststep": {},        // vacuous: no screens/substitutes exist (see report)
+        "tempest-force": { dealt: [{ el: 6, m: 1.3, if: "sky:Tempest" }] },
+        "crushing-jaws": { dealt: [{ tag: "bite", m: 1.5 }] },
+        "frostmantle-touch": {}, // B2 conversion
+        "siege-heart": { dealt: [{ tag: "pulse", m: 1.5 }] },
+        "rending-claws": { dealt: [{ if: "contact", m: 1.3 }] },
+        "stardust-touch": {},   // B2 conversion
+        "zephyr-touch": {},     // B2 conversion
+        "twofold-bond": {},     // B2 second strike at 25%
+        "no-mercy-for-the-sick": {}, // Part A itemCri (always crit vs poisoned)
+        "ambush-creed": {},     // B2 (switch-in turn x2)
+        "forgeheart": { dealt: [{ el: 6, m: 1.5 }] },
+        "quarryheart": { dealt: [{ el: 6, m: 1.5 }] },
+        "overcharge-heart": { dealt: [{ el: 5, m: 1.5 }] },
+        "starwyrm-maw": { dealt: [{ el: 9, m: 1.5 }] },
+        "seismic-heart": { dealt: [{ el: 6, m: 1.3 }] },
+        "tempest-wrath": { dealt: [{ el: 5, m: 1.3 }] },
+        "starlight-surge": { dealt: [{ el: 9, m: 1.3 }] },
+        "magma-core": { dealt: [{ el: 2, m: 1.3 }], immune: [11] },
+        "calamity-heart": { dealt: [{ el: 2, m: 1.2 }] },
+        "trench-heart": { dealt: [{ el: 3, m: 1.2 }] },
+        "sylvan-heart": { dealt: [{ el: 4, m: 1.2 }] },
+        "storm-bloom": { dealt: [{ el: 7, m: 1.2 }] },
+        "shadow-beak": { dealt: [{ el: 8, m: 1.2 }] },
+        "iron-pincer": { dealt: [{ cat: 1, m: 1.2 }] },
+        "farhand": {},          // B2 isContact (never makes contact)
+        "tidevoice": {},        // B2 conversion (sound -> Water)
+        "galvanic-touch": {},   // B2 conversion
+        "overmind-edge": {},    // B2 SE x1.25
+        "thunderous-verse": { dealt: [{ tag: "sound", m: 1.3 }], taken: [{ tag: "sound", m: 0.5 }] },
+        "unseen-hand": {},      // vacuous: no protect-class moves exist (see report)
+        "edge-discipline": { dealt: [{ tag: "slicing", m: 1.5 }] },
+        "chainvenom": {},       // B2 on-hit queue (30% badly poison)
+
+        // ------------------------------------------------ DAMAGE TAKEN (42)
+        "bastion-hide": {},     // Part A itemCri (cannot be crit)
+        "carapace-guard": {},   // Part A itemCri
+        "last-rampart": {},     // B2 full-HP survival
+        "stormcell": {},        // B2 absorb (Volt -> heal 1/4)
+        "deepwell": {},         // B2 absorb (Water -> heal 1/4)
+        "earthfeast": {},       // B2 absorb (Earth -> heal 1/4)
+        "kindled-core": {},     // B2 absorb + kindle flag
+        "galvengine": {},       // B2 absorb (Volt -> AGI +1)
+        "galvanic-spire": {},   // B2 absorb (Volt -> MAT +1) + B3 draw-in
+        "maelstrom-call": {},   // B2 absorb (Water -> MAT +1) + B3 draw-in
+        "thornfeast": {},       // B2 absorb (Nature -> ATK +1)
+        "kilnbaked-body": {},   // B2 absorb (Fire -> DEF +2)
+        "galecrown": {},        // B2 absorb (Wind -> ATK +1)
+        "warding-dust": {},     // B2 riderBlocked (no added effects)
+        "ninefold-ward": {},    // B2 (only super-effective hits land)
+        "skyborne": {},         // B2 (Earth immunity)
+        "hushfield": {},        // B2 (sound immunity)
+        "shellward": {},        // B2 (ballistic immunity)
+        "gravewater": {},       // Part A gainDrainedHp inversion
+        "hexward-body": {},     // Part A/B2 indirect-damage immunity seams
+        "guardian-stance": {},  // B2 ally reduction x0.75
+        "kindred-sense": {},    // B2 ally spread immunity
+        "slipskin": {},         // Part A itemHit (status moves x0.5 acc)
+        "mirrorward": {},       // Part A application gate (reflect)
+        "gilded-immunity": {},  // Part A application gate (status-move immune)
+        "sacrificial-veil": {}, // B2 one-time shield
+        "frostmask": {},        // B2 one-time physical shield (+ Tempest restore)
+        "winterfat": { taken: [{ el: 2, m: 0.5 }, { el: 7, m: 0.5 }] },
+        "kilnbody": { taken: [{ el: 2, m: 0.5 }] },
+        "aegis-weave": { taken: [{ m: 0.75, if: "se" }] },
+        "bedrock-soul": { taken: [{ m: 0.75, if: "se" }] },
+        "prismforge-armor": { taken: [{ m: 0.75, if: "se" }] },
+        "prism-scales": { taken: [{ m: 0.5, if: "fullhp" }] },
+        "eclipseshield": { taken: [{ m: 0.5, if: "fullhp" }] },
+        "sovereign-scales": { taken: [{ m: 0.5, if: "fullhp" }] },
+        "prismworld-shell": { taken: [{ m: 0.75, if: "fullhp" }] },
+        "luxuriant-pelt": { taken: [{ cat: 1, m: 0.5 }] },
+        "frostscale-veil": { taken: [{ cat: 2, m: 0.5 }] },
+        "aegis-of-ages": { taken: [{ cat: 2, m: 0.75 }] },
+        "permafrost-veil": { taken: [{ cat: 1, m: 0.75 }] },
+        "bubbleward": { taken: [{ el: 2, m: 0.5 }], dealt: [{ el: 3, m: 2 }], immune: [11] },
+        "cloudpelt": { takenFn(ctx) {
+            let m = null;
+            if (ctx.contact) m = 0.5;
+            if (ctx.element === 2) m = (m === null ? 1 : m) * 2;
+            return m;
+        } },
+
+        // ------------------------------------------------ ON HIT (37)
+        // B2 fireOnHit hardcodes the contact-status family, chips, stage
+        // reactions, copy/swap, doom, hazards and the crossed-half set.
+        "sparksnare": {}, "venomspine": {}, "cinderhide": {}, "dreamspore": {},
+        "shardhide": {}, "barbhide": {}, "tarskin": {}, "snarlmane": {},
+        "plague-touch": {}, "clinging-perfume": {}, "spirit-exchange": {},
+        "doommark-touch": {}, "wrathpoint": {}, "fracture-plate": {},
+        "bulwark-growth": {}, "tidepack": {}, "boilerheart": {},
+        "stormcharge": {}, "woundcharge": {}, "feverforge": {},
+        "retribution": {}, "startle-reflex": {}, "prismflesh": {},
+        "hexed-husk": {}, "venom-rubble": {}, "tempest-answer": {},
+        "sowsong": {}, "fishers-dividend": {},
+        "painflare": {}, "shellwrath": {}, "cellswarm-ascendant": {},
+        "cowards-exit": {}, "sovereigns-exit": {}, "unbowed": {},
+        "plasma-barbs": { onHitFn(ctx) {
+            if (ctx.item && ctx.item.hitType === 1 && brC(0.30)) {
+                S21.applyStageChange(ctx.subject, "agi", -1, ctx.target, {});
+                S21.banner(ctx.target, "plasma-barbs");
+            }
+        } },
+        "dazing-charm": { onHitFn(ctx) {
+            // v2 §2.3 EXCLUDES infatuation (no gender model): the library's
+            // infatuation is expressed as confusion (see report).
+            if (ctx.contact && brC(0.30)) {
+                if (S21.applyStatus(ctx.target, ctx.subject, 8, ctx.item).ok) S21.banner(ctx.target, "dazing-charm");
+            }
+        } },
+        "cottonfall": { onHitFn(ctx) {
+            for (const o of S21.allStanding()) {
+                if (o !== ctx.target) S21.applyStageChange(o, "agi", -1, ctx.target, {});
+            }
+            S21.banner(ctx.target, "cottonfall");
+        } },
+
+        // ------------------------------------------------ PRE-MOVE (20)
+        "manifold-eyes": {},    // Part A itemHit x1.3
+        "lantern-gaze": {},     // Part A accBlock + itemHit ignoreEva
+        "trueaim-regard": {},   // Part A accBlock + itemHit ignoreEva
+        "inward-eye": {},       // Part A + B3 hit-through
+        "raptors-regard": {},   // Part A ACC floor + ignoreEva
+        "openfield-stance": {}, // Part A itemHit (No Guard both ways)
+        "guiding-star": {},     // Part A itemHit x1.1 (self + allies)
+        "slacker-heart": { gateFn(b, item) {
+            const m = S21.store(b).misc;
+            if (m.truantOk === undefined) m.truantOk = true;
+            if (!m.truantOk) {
+                m.truantOk = true;
+                S21.banner(b, "slacker-heart");
+                S21.log(nm(b) + " is loafing around!");
+                return true;
+            }
+            m.truantOk = false;
+            return false;
+        } },
+        "lastlight": { speed: -1000 },
+        "tricksters-bow": { speedFn(b, item) {
+            return item && item.damage && item.damage.type === 0 ? 1000 : 0;
+        } }, // + B3 gate treats its status moves as priority class
+        "shifting-palette": {}, // B3 extraActionGate type change
+        "shifting-colors": {},  // B3 extraActionGate type change
+        "blade-and-aegis-stance": {}, // B3 per-action stage lens
+        "firstwind": { speedFn(b, item) {
+            return item && item.damage && item.damage.elementId === 7 && b.hp >= b.mhp ? 1000 : 0;
+        } }, // + B3 gate priority class
+        "mercys-haste": { speedFn(b, item) {
+            return item && item.damage && item.damage.type === 3 ? 3000 : 0;
+        } },
+        "regal-decree": {},      // B3 priority block
+        "blinding-mien": {},     // B3 priority block
+        "veiltail-decree": {},   // B3 priority block
+        "sudden-draw": { speedFn() { return brC(0.30) ? 1000 : 0; } },
+        "patient-spores": { speedFn(b, item) {
+            return item && item.damage && item.damage.type === 0 ? -1000 : 0;
+        } }, // ability-piercing status handled in the B3 application wrap
+
+        // ------------------------------------------------ STATUS (35)
+        "suppleframe": { immune: [12] },
+        "sleepless-vigil": { immune: [10] },
+        "undying-spark": { immune: [10] },
+        "antivenin": { immune: [4, 31] },
+        "own-cadence": { immune: [8] }, // + Part A entry-ATK block
+        "tideveil": { immune: [11] },
+        "frost-mane": { immune: [11] },
+        "magmashell": { immune: [14] },
+        "eternal-slumber": { immuneAll: true }, // + Part A pseudo-asleep state
+        "saltward-body": { immuneAll: true, taken: [{ el: 8, m: 0.5 }] },
+        "blithe-mind": {},      // Part A entry-ATK block
+        "stillpoint": {},       // Part A flinch immunity + entry-ATK block
+        "shearbrand": {},       // Part A ATK stat-block
+        "proudcrest": {},       // Part A DEF stat-block
+        "brightbody": {},       // Part A full stat protection
+        "pale-shroud": {},      // Part A full stat protection
+        "brightforge-body": {}, // Part A full stat protection
+        "temporal-sovereignty": {}, // Part A full stat protection (signature)
+        "mirror-temper": {},    // Part A stage reversal
+        "open-book": {},        // Part A stage doubling
+        "defiance": {},         // Part A ATK +2 on foe lowering
+        "proud-retort": {},     // Part A MAT +2 on foe lowering
+        "mirrorplate": {},      // Part A reflection
+        "mirroring-ambition": {}, // Part A foe-raise copy
+        "dawnriser": {},        // Part A sleep clock (wakes early)
+        "shared-burden": {},    // B2 onStatusApplied reflection
+        "puppeteers-venom": {}, // B2 onStatusApplied confusion add
+        "canopy-ward": {},      // B2 abilityImmuneTo under Day sky
+        "stormproof-coat": {},  // B2 powder immunity
+        "petalward": {},        // B2 ally veil (Nature allies)
+        "honeyveil": {},        // B2 ally veil (sleep)
+        "pastel-ward": {},      // B2 ally veil (poison family)
+        "calm-incense": {},     // B3 disable-cover in the pre-move gate
+        "rustvenom": {},        // Part A application gate (poison pierces type immunity)
+        "toxic-tide": {},       // B2 on-hit queue (10% poison, signature)
+
+        // ------------------------------------------------ PASSIVE (32)
+        "dustveil": {},         // Part A itemHit EVA under Tempest
+        "stormshroud": {},      // Part A itemHit EVA under Tempest
+        "reeling-steps": {},    // Part A itemHit EVA while confused
+        "reckless-brawn": { param: [{ p: 2, m: 1.5 }] }, // accuracy x0.8 in Part A itemHit
+        "nightcurrent": { param: [{ p: 6, m: 2, if: "sky:Night" }] },
+        "sunreacher": { param: [{ p: 6, m: 2, if: "sky:Day" }] },
+        "tempest-rush": { param: [{ p: 6, m: 2, if: "sky:Tempest" }] },
+        "stormglide": { param: [{ p: 6, m: 2, if: "sky:Tempest" }] },
+        "voltrider": { param: [{ p: 6, m: 2, if: "aura:Volt" }] },
+        "titans-gift": { param: [{ p: 2, m: 1.5 }] },
+        "innocent-might": { param: [{ p: 2, m: 1.5 }] },
+        "painfeast": { param: [{ p: 2, m: 1.5, if: "statused" }] }, // burn-cut exemption in Part A
+        "lustrous-scales": { param: [{ p: 3, m: 1.5, if: "statused" }] },
+        "faltering-crown": { param: [{ p: 2, m: 0.5, if: "halfOrBelow" }, { p: 4, m: 0.5, if: "halfOrBelow" }] },
+        "bloomplate": { param: [{ p: 3, m: 1.5, if: "aura:Bloom" }] },
+        "sunfeast": { param: [{ p: 4, m: 1.5, if: "sky:Day" }], eot: { loseSky: { Day: 1 / 8 } } },
+        "bloomtide-gift": {},   // B3 paramRate (bearer + allies under Day)
+        "bloom-renewal": {},    // Part A makeDamageValue (own healing x1.5, signature)
+        "anode-soul": { paramFn(b, pid) {
+            if (pid !== 4) return null;
+            return S21.alliesOf(b).some(a => ["anode-soul", "cathode-soul"].includes(S21.abilityActive(a))) ? 1.5 : null;
+        } },
+        "cathode-soul": { paramFn(b, pid) {
+            if (pid !== 4) return null;
+            return S21.alliesOf(b).some(a => ["anode-soul", "cathode-soul"].includes(S21.abilityActive(a))) ? 1.5 : null;
+        } },
+        "feversteps": { paramFn(b, pid) {
+            if (pid !== 6) return null;
+            const st = S21.majorStatusOf(b);
+            if (st === 12) return 3;   // x1.5 net of the paralysis halving trait
+            return st > 0 ? 1.5 : null;
+        } },
+        "slow-kindling": { paramFn(b, pid) {
+            if (pid !== 2 && pid !== 6) return null;
+            return (S21.store(b).misc.turnsInBattle || 0) < 5 ? 0.5 : null;
+        } },
+        "twofold-soul": { paramFn(b, pid) {
+            if (b.hp * 2 > b.mhp) return null;
+            if (pid === 4 || pid === 5) return 1.3;
+            if (pid === 2 || pid === 3) return 0.8;
+            return null;
+        } },
+        "shellfall-stance": {
+            param: [{ p: 6, m: 0.8, if: "aboveHalf" }],
+            taken: [{ m: 0.75, if: "aboveHalf" }],
+            dealt: [{ m: 1.2, if: "halfOrBelow" }]
+        },
+        "one-as-many": { dealt: [{ m: 1.25, if: "aboveHalf" }], taken: [{ m: 0.8, if: "aboveHalf" }] },
+        "living-battery": {},   // B2 ally special x1.3
+        "empowering-ground": {}, // B2 ally x1.3
+        "forge-anthem": {},     // B2 Earth x1.5 (bearer + allies)
+        "single-minded-onslaught": {
+            param: [{ p: 2, m: 1.4 }],
+            gateFn(b, item) {
+                const m = S21.store(b).misc;
+                if (!m.lockedSkillId) { m.lockedSkillId = item.id; return false; }
+                if (item.id !== m.lockedSkillId) {
+                    S21.log(nm(b) + " can only use " + (skillRec(m.lockedSkillId) || {}).name + "!");
+                    return true;
+                }
+                return false;
+            }
+        },
+        "dawnforge-protocol": { paramFn(b, pid) {
+            if (S21.skyActive() !== "Day") return null;
+            let bestPid = 2, best = -1;
+            for (const p of [2, 3, 4, 5, 6]) {
+                let v = 0;
+                try { v = b.paramBase(p); } catch (e) {}
+                if (v > best) { best = v; bestPid = p; }
+            }
+            if (pid !== bestPid) return null;
+            return pid === 6 ? 1.5 : 1.3;
+        } },
+        "voltforge-protocol": { paramFn(b, pid) {
+            if (S21.auraActive() !== "Volt") return null;
+            let bestPid = 2, best = -1;
+            for (const p of [2, 3, 4, 5, 6]) {
+                let v = 0;
+                try { v = b.paramBase(p); } catch (e) {}
+                if (v > best) { best = v; bestPid = p; }
+            }
+            if (pid !== bestPid) return null;
+            return pid === 6 ? 1.5 : 1.3;
+        } },
+        "crown-of-the-fallen": { paramFn(b, pid) {
+            if (pid !== 2 && pid !== 4) return null;
+            let fainted = 0;
+            try {
+                const roster = S21.sideOf(b) === "actor"
+                    ? ((typeof $gameParty !== "undefined" && $gameParty) ? $gameParty.allMembers() : [])
+                    : ((typeof $gameTroop !== "undefined" && $gameTroop) ? $gameTroop.members() : []);
+                for (const x of roster) if (x && x !== b && typeof x.isDead === "function" && x.isDead()) fainted++;
+            } catch (e) {}
+            return fainted > 0 ? Math.min(1.5, 1 + 0.1 * fainted) : null;
+        } },
+
+        // ------------------------------------------------ FIELD (25)
+        "nightrain": { entry: { sky: "Night" } },
+        "dawncaller": { entry: { sky: "Day" } },
+        "tempestcaller": { entry: { sky: "Tempest" } },
+        "tempest-herald": { entry: { sky: "Tempest" } },
+        "first-oceans-reign": { entry: { sky: "Night" } },  // Fire nullification in B2 dealt
+        "first-suns-reign": { entry: { sky: "Day" } },      // Water nullification in B2 dealt
+        "first-storms-reign": { entry: { sky: "Tempest" } }, // weakness removal in B2 dealt
+        "voltfield-herald": { entry: { aura: "Volt" } },
+        "mindfield-herald": { entry: { aura: "Astral" } },
+        "mistfield-herald": { entry: { aura: "Mist" } },
+        "bloomfield-herald": { entry: { aura: "Bloom" } },
+        "ancient-dawn-pulse": { entry: { sky: "Day" }, param: [{ p: 2, m: 1.3, if: "sky:Day" }] },
+        "future-engine": { entry: { aura: "Volt" }, param: [{ p: 4, m: 1.3, if: "aura:Volt" }] },
+        "worldstill": { entryFn(b) {
+            try { S21.field.aura = null; S21.field.auraTurns = 0; } catch (e) {}
+            S21.banner(b, "worldstill");
+        } }, // ongoing nullification in B2 sky checks
+        "clearsky-mind": {},    // B2 sky/aura nullification while standing
+        "stilled-heavens": {},  // B2 sky/aura nullification while standing
+        "skyward-guise": {},    // B2 effectiveTypes by Sky
+        "fieldmirror": {},      // B2 effectiveTypes by Aura
+        "umbral-aura": {},      // B2 auraBoostMult x1.33
+        "astral-aura": {},      // B2 auraBoostMult x1.33
+        "stillpoint-aura": {},  // B2 auraBoostMult reversal
+        "tablets-of-undoing": {}, // B3 paramRate field modifier (ATK)
+        "sword-of-undoing": {},   // B3 paramRate field modifier (DEF)
+        "vessel-of-undoing": {},  // B3 paramRate field modifier (MAT)
+        "beads-of-undoing": {},   // B3 paramRate field modifier (MDF)
+
+        // ------------------------------------------------ SYSTEM (15)
+        "stillwater-aura": {},  // B3 pre-move gate (explosive block)
+        "anchorhold": {},       // no forced-switch moves exist in Ganjuko (see report)
+        "umbral-tether": {},    // B3 trap + escape seams
+        "lodestone-grasp": {},  // B3 trap + escape seams
+        "snareground": {},      // B3 trap + escape seams
+        "dread-tax": {},        // B3 skillMpCost x2
+        "slipaway": {},         // B3 processEscape
+        "rattlebones": {},      // B3 Game_Party.canUse block
+        "wardbreaker": {},      // framework negation (damage/status seams)
+        "heavenbrand": {},      // framework negation
+        "stormbrand": {},       // framework negation
+        "echo-dancer": {},      // B2 applyItemUserEffect wrap (dance copy)
+        "slipstream-wake": {},  // B3 draw-in exemption
+        "unswerving-wake": {},  // B3 draw-in exemption
+        "null-air": {},         // B2 abilityActive suppression
+
+        // ------------------------------------------------ SWITCH (3)
+        "wild-renewal": {},     // B3 onSwitchOut cure
+        "returnbloom": {},      // B3 onSwitchOut heal 1/3
+        "hero-unmasked": {},    // B3 switch-out flag + entry package
+
+        // ------------------------------------------------ KO DEALT (8)
+        "bloodsurge": { ko: { atk: 1 } },
+        "winter-toll": { ko: { atk: 1 } },
+        "soul-tithe": { ko: { atk: 1 } },
+        "dread-toll": { ko: { mat: 1 } },
+        "bond-ascendant": { ko: { atk: 1, mat: 1, agi: 1 } },
+        "triumphant-zenith": { koFn(b) {
+            let bestKey = "atk", best = -1;
+            for (const [pid, key] of [[2, "atk"], [3, "def"], [4, "mat"], [5, "mdf"], [6, "agi"]]) {
+                let v = 0;
+                try { v = b.paramBase(pid); } catch (e) {}
+                if (v > best) { best = v; bestKey = key; }
+            }
+            S21.applyStageChange(b, bestKey, 1, null, {});
+            S21.banner(b, "triumphant-zenith");
+        } },
+        "twin-souled-sovereign": { koFn(b) {
+            // Variant fixed per species: the higher offensive base stat.
+            let atkB = 0, matB = 0;
+            try {
+                const sp = (typeof b.ganjukoSpecies === "function") ? b.ganjukoSpecies() : null;
+                if (sp && sp.baseStats) { atkB = sp.baseStats[2] || 0; matB = sp.baseStats[4] || 0; }
+            } catch (e) {}
+            S21.applyStageChange(b, atkB >= matB ? "atk" : "mat", 1, null, {});
+            S21.banner(b, "twin-souled-sovereign");
+        } }, // item block in B3 canUse
+        "soul-harvest": { koFn(b) {
+            try { b.gainHp(Math.max(1, Math.floor(b.mhp * 0.25))); } catch (e) {}
+            S21.banner(b, "soul-harvest");
+        } },
+
+        // ------------------------------------------------ KO FAINTED (5)
+        "ashes-toll": { faintFn(fainted, attacker) {
+            if (!attacker) return;
+            if (S21.store(fainted).lastHitContact) {
+                S21.chipDamage(attacker, Math.max(1, Math.floor(attacker.mhp / 4)), fainted);
+            }
+        } },
+        "last-tithe": { faintFn(fainted, attacker) {
+            if (!attacker) return;
+            const amt = S21.store(fainted).misc.hpBeforeHit || 0;
+            if (amt > 0) S21.chipDamage(attacker, amt, fainted);
+        } },
+        "soulforge-heart": {},  // B3 onFaint witness raise
+        "inheritor": {},        // B3 onFaint ally copy
+        "alchemists-inheritance": {} // B3 onFaint ally copy
+    };
+    S21._status.impl = true;
+})();
+// === END Section 21 Part B3b (ABILITY_IMPL) ===
+

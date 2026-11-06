@@ -4673,27 +4673,24 @@
               ]
             },
             {
-              "code": 301,
+              "code": 355,
               "indent": 0,
               "parameters": [
-                0,
-                29,
-                false,
-                false
+                "GanjukoEngine.startTrainerBattle('Grand Champion Leon', [{ speciesId: 29, level: 51 }, { speciesId: 30, level: 52 }, { speciesId: 495, level: 53 }, { speciesId: 321, level: 54 }, { speciesId: 69, level: 54 }, { speciesId: 504, level: 55 }], 12000, 'Battle3', 36);"
               ]
             },
             {
-              "code": 121,
+              "code": 111,
               "indent": 0,
               "parameters": [
-                36,
+                0,
                 36,
                 0
               ]
             },
             {
               "code": 126,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 22,
                 0,
@@ -4703,7 +4700,7 @@
             },
             {
               "code": 126,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 23,
                 0,
@@ -4713,7 +4710,7 @@
             },
             {
               "code": 250,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 {
                   "name": "Fanfare2",
@@ -4725,7 +4722,7 @@
             },
             {
               "code": 101,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "",
                 0,
@@ -4736,28 +4733,28 @@
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "\\C[11]UNBELIEVABLE! A NEW CHAMPION IS BORN!\\C[0]"
               ]
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "You and your Ganjuko have reached the pinnacle of the world!"
               ]
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "Enter the Hall of Fame, where your names shall be etched forever!"
               ]
             },
             {
               "code": 101,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "",
                 0,
@@ -4768,10 +4765,15 @@
             },
             {
               "code": 401,
-              "indent": 0,
+              "indent": 1,
               "parameters": [
                 "\\C[14]You were awarded the GRAND CHAMPION TROPHY and the ORIGIN SPHERE!\\C[0]"
               ]
+            },
+            {
+              "code": 412,
+              "indent": 0,
+              "parameters": []
             },
             {
               "code": 0,
